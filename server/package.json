@@ -1,0 +1,16 @@
+{
+  "name": "no-way-out-server",
+  "version": "0.1.0",
+  "type": "module",
+  "description": "Node.js + WebSocket Backend für NO WAY OUT (Lobby, Room-Codes, autoritative Spiellogik)",
+  "main": "index.js",
+  "scripts": {
+    "start": "node index.js"
+  },
+  "engines": {
+    "node": ">=18"
+  },
+  "dependencies": {
+    "ws": "^8.18.0"
+  }
+}

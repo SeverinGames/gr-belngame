@@ -1,0 +1,178 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+  <title>NO WAY OUT</title>
+  <link rel="manifest" href="manifest.json" />
+  <meta name="theme-color" content="#0d0f16" />
+  <link rel="stylesheet" href="css/style.css" />
+</head>
+<body>
+  <div id="app">
+
+    <section id="screen-menu" class="screen">
+      <div class="logo">NO WAY<span>?</span></div>
+      <p class="tagline">Rein ins Ungewisse. Raus, solange es noch geht.</p>
+      <div id="skin-badge" class="skin-badge"></div>
+      <div id="profile-summary" class="profile-summary"></div>
+      <button id="btn-play" class="btn btn--primary">SOLO</button>
+      <button id="btn-online" class="btn btn--primary">ONLINE</button>
+      <button id="btn-daily" class="btn btn--secondary">Tägliche Belohnung</button>
+      <button id="btn-missions" class="btn btn--secondary">Missionen</button>
+      <button id="btn-mysterybox" class="btn btn--secondary">Mystery Box öffnen</button>
+      <button id="btn-settings" class="btn btn--secondary">Einstellungen</button>
+    </section>
+
+    <section id="screen-online-choice" class="screen hidden">
+      <h2>Online spielen</h2>
+      <button id="btn-online-create" class="btn btn--primary">Lobby erstellen</button>
+      <button id="btn-online-join" class="btn btn--secondary">Lobby beitreten</button>
+      <button class="btn btn--secondary" data-back="screen-menu">Zurück</button>
+    </section>
+
+    <section id="screen-online-join" class="screen hidden">
+      <h2>Room-Code eingeben</h2>
+      <input id="join-code-input" class="text-input" maxlength="5" placeholder="z.B. X7K92" autocapitalize="characters" />
+      <button id="btn-join-confirm" class="btn btn--primary">Beitreten</button>
+      <button class="btn btn--secondary" data-back="screen-online-choice">Zurück</button>
+      <p id="join-error" class="error-text hidden"></p>
+    </section>
+
+    <section id="screen-lobby" class="screen hidden">
+      <h2>Lobby <span id="lobby-code" class="lobby-code"></span></h2>
+      <div id="lobby-players" class="lobby-players"></div>
+      <div id="lobby-host-settings" class="lobby-host-settings hidden">
+        <label>Schwierigkeit
+          <select id="lobby-difficulty">
+            <option value="easy">Easy</option>
+            <option value="normal" selected>Normal</option>
+            <option value="hard">Hard</option>
+            <option value="chaos">Chaos</option>
+            <option value="nightmare">Nightmare</option>
+          </select>
+        </label>
+        <label>Bots
+          <select id="lobby-bots">
+            <option value="0">0</option>
+            <option value="1">1</option>
+            <option value="2" selected>2</option>
+            <option value="3">3</option>
+            <option value="4">4</option>
+            <option value="5">5</option>
+          </select>
+        </label>
+        <label>Saboteur
+          <select id="lobby-saboteur">
+            <option value="peaceful">Friedlich</option>
+            <option value="normal" selected>Normal</option>
+            <option value="chaos">Chaos</option>
+            <option value="extreme">Extrem</option>
+            <option value="allOrNothing">Alles oder Nichts</option>
+          </select>
+        </label>
+        <button id="btn-lobby-start" class="btn btn--primary">Runde starten</button>
+      </div>
+      <button id="btn-lobby-ready" class="btn btn--secondary">Bereit</button>
+      <button id="btn-lobby-leave" class="btn btn--secondary">Verlassen</button>
+    </section>
+
+    <section id="screen-online-game" class="screen hidden">
+      <div id="online-players-hud" class="online-players-hud"></div>
+      <div id="online-outcome" class="outcome outcome--hidden"></div>
+      <div id="online-doors" class="doors"></div>
+      <div id="online-bot-feed" class="bot-feed"></div>
+      <div id="online-decision" class="decision hidden"></div>
+    </section>
+
+    <section id="screen-settings" class="screen hidden">
+      <h2>Einstellungen</h2>
+      <label class="settings-row">
+        Musik
+        <input type="range" id="vol-music" min="0" max="100" value="50" />
+      </label>
+      <label class="settings-row">
+        Soundeffekte
+        <input type="range" id="vol-sfx" min="0" max="100" value="70" />
+      </label>
+      <label class="settings-row settings-row--checkbox">
+        Vibration
+        <input type="checkbox" id="vol-vibration" checked />
+      </label>
+      <button class="btn btn--secondary" data-back="screen-menu">Zurück</button>
+    </section>
+
+    <section id="screen-daily" class="screen hidden">
+      <h2>Tägliche Belohnung</h2>
+      <p id="daily-status"></p>
+      <button id="btn-daily-claim" class="btn btn--primary">Abholen</button>
+      <button class="btn btn--secondary" data-back="screen-menu">Zurück</button>
+    </section>
+
+    <section id="screen-missions" class="screen hidden">
+      <h2>Missionen</h2>
+      <div id="missions-list"></div>
+      <button class="btn btn--secondary" data-back="screen-menu">Zurück</button>
+    </section>
+
+    <section id="screen-mysterybox" class="screen hidden">
+      <h2>Mystery Box</h2>
+      <p id="mysterybox-status"></p>
+      <button id="btn-mysterybox-open" class="btn btn--primary">Öffnen (1 Schlüssel)</button>
+      <div id="mysterybox-result"></div>
+      <button class="btn btn--secondary" data-back="screen-menu">Zurück</button>
+    </section>
+
+    <section id="screen-difficulty" class="screen hidden">
+      <h2>Schwierigkeit wählen</h2>
+      <div class="difficulty-grid">
+        <button class="btn btn--secondary" data-difficulty="easy">Easy</button>
+        <button class="btn btn--secondary" data-difficulty="normal">Normal</button>
+        <button class="btn btn--secondary" data-difficulty="hard">Hard</button>
+        <button class="btn btn--secondary" data-difficulty="chaos">Chaos</button>
+        <button class="btn btn--secondary" data-difficulty="nightmare">Nightmare</button>
+      </div>
+    </section>
+
+    <section id="screen-saboteur" class="screen hidden">
+      <h2>Saboteur-Wahrscheinlichkeit</h2>
+      <div class="difficulty-grid">
+        <button class="btn btn--secondary" data-saboteur="peaceful">Friedlich (0%)</button>
+        <button class="btn btn--secondary" data-saboteur="normal">Normal (~20%)</button>
+        <button class="btn btn--secondary" data-saboteur="chaos">Chaos (~35%)</button>
+        <button class="btn btn--secondary" data-saboteur="extreme">Extrem (~50%)</button>
+        <button class="btn btn--secondary" data-saboteur="allOrNothing">Alles oder Nichts</button>
+      </div>
+    </section>
+
+    <section id="screen-game" class="screen hidden">
+      <div class="hud">
+        <div>
+          HP
+          <div class="hud-hpbar"><div id="hud-hp" style="width:100%"></div></div>
+          <span id="hud-hp-label">100 HP</span>
+        </div>
+        <div>Gesichert<br /><strong id="hud-secured">0</strong></div>
+        <div>Riskiert<br /><strong id="hud-risk">0</strong></div>
+        <div>Räume<br /><strong id="hud-rooms">0</strong></div>
+      </div>
+
+      <div id="bot-roster" class="bot-roster"></div>
+      <div id="outcome" class="outcome outcome--hidden"></div>
+      <div id="doors" class="doors"></div>
+      <div id="bot-feed" class="bot-feed"></div>
+      <div id="decision" class="decision hidden"></div>
+    </section>
+
+    <section id="screen-end" class="screen hidden">
+      <h1 id="end-title" class="end-title"></h1>
+      <p id="end-summary"></p>
+      <p id="end-saboteur" class="end-saboteur hidden"></p>
+      <button id="btn-play-again" class="btn btn--primary">Zurück zum Menü</button>
+    </section>
+
+  </div>
+
+  <script type="module" src="js/game/main.js"></script>
+</body>
+</html>
