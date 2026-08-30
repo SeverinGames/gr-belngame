@@ -5,4 +5,4 @@
 // Für lokale Tests (Server läuft mit `npm start` in /server auf Port 3001):
 // export const SERVER_URL = "ws://localhost:3001";
 
-export const SERVER_URL = "ws://localhost:3001"; // TODO: nach Render-Deploy ersetzen
+export const SERVER_URL = "wss://gr-belngame.onrender.com";
