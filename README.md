@@ -68,8 +68,30 @@ Dann im Browser: http://localhost:8000 (bzw. der von serve angezeigte Port)
 - PWA-Manifest + generierte Icons ("Zum Home-Bildschirm hinzufügen")
 - **Bekannte Einschränkung:** Die Audio/Settings-Integration wurde nur statisch geprüft (alle DOM-IDs abgeglichen, Syntax sauber), nicht mehr live im Browser durchgeklickt, weil die Sandbox hier gerade keine Chromium-Testläufe zulässt. Bitte beim eigenen Testen besonders auf Ton/Lautstärkeregler achten.
 
-## Wichtiger Hinweis zur Testmethode
-Ab Phase 4 wurde zusätzlich zu den Node-Unit-Tests mit einem echten Chromium-Browser (Playwright) getestet - das hat zwei echte Bugs gefunden, die reine Syntax-Checks nicht erkannt hätten (ein kaputter Copy-Paste-Fehler, und ein Bug, bei dem der Spiel-Screen nach Rundenende nicht ausgeblendet wurde). Testskripte: `node tools/browser_test.cjs` (kompletter Klickpfad) und `node tools/debug_run.cjs` (Zustandsprotokoll bei Problemen).
+## NEXUS-Rebuild: Phase 1 (Bewegungswelt) – fertig, echt im Browser getestet
+- Neue Bewegungs-Engine (`js/world/`): Canvas-basierte 2D-Welt statt Buttons
+- Spieler bewegt sich frei mit WASD/Pfeiltasten (PC) oder virtuellem Joystick (Mobile), Kollision gegen Wände
+- Türen sind jetzt echte, sichtbare Objekte im Raum (Holz-/Metalltür je nach Hinweis) - Spieler läuft hin und drückt E (bzw. tippt ÖFFNEN), keine "Tür 1/Tür 2"-Buttons mehr
+- Kamera folgt dem Spieler, an Raumgrenzen geklemmt
+- Stilisierte Spielfiguren (kein Foto - siehe Datenschutz-Hinweis) mit Lauf-/Idle-Animation, individuelles Farbschema pro Skin
+- Komplett wiederverwendete, bereits getestete Spiellogik dahinter (RandomEngine, Events, Bots, Saboteur) - nur die Präsentationsschicht wurde ausgetauscht, kein Logik-Rewrite nötig
+- **Getestet mit echtem Chromium**: `node tools/browser_test_world.cjs` (5 Checks: Bewegung sichtbar, Kollision, Interaktions-Prompt, Tür-Öffnen per Taste ändert HUD)
+
+## Mystery-Box-Wahrscheinlichkeiten korrigiert und verifiziert
+- Bug gefunden: Löndi (Mission-Skin) tauchte fälschlich auch im Box-Pool auf und verzerrte die Legendär-Chance
+- Neue Gewichte eingetragen (Superselten 55% → Unlimited 0,13%, strikt absteigend)
+- Mit 100.000 simulierten Ziehungen verifiziert: angezeigte Prozente stimmen exakt mit tatsächlicher Häufigkeit überein (keine Fake-Chancen)
+
+## Skin-Bilder
+7 von 8 Fotos eindeutig per Dateiname zugeordnet, IMG_4155.PNG = Mayo (bestätigt). Da es echte, teils jugendlich wirkende Gesichter sind, werden sie nur als Stilvorlage für eigene illustrierte Charaktere verwendet, nicht selbst als Bild ins Spiel geladen (Datenschutz bei öffentlicher Deploy-URL).
+
+## Noch offen (riesiger Rest-Scope aus dem NEXUS-Prompt)
+- Charaktere optisch näher an die Fotos anpassen (Haarfarbe/-stil, Cap, Brille pro Person)
+- Mehrere unterscheidbare Minispiele (aktuell: Tür-Ereignisse reichen bis Textresultat, noch keine eigenen Mini-Spielmechaniken wie Verstecken/Laser/Boden)
+- Weitere Maps (aktuell nur 1 generischer Raum-Typ, kein "Hotel" mit Lobby/Flur/Zimmer/Keller)
+- Spind als begehbarer Bereich, Mystery-Box als physisches Objekt in der Welt
+- Bewegung im Online-Multiplayer synchronisieren (aktuell nutzt Online-Modus noch die alte Button-Ansicht)
+- Einmalige Schwierigkeitsauswahl ohne Saboteur-Unterauswahl im selben Schritt (aktuell zwei Schritte hintereinander, technisch aber schon getrennte Parameter)
 
 ## Skin-Artwork
 Skins sind aktuell nur als Daten definiert (Name, Rarity, Platzhalter-Asset).

@@ -4,19 +4,27 @@ import { unlockSkin } from "./profile.js";
 
 // Transparente Drop-Gewichte pro Rarity - je seltener, desto niedriger.
 // Werden dem Spieler im UI so oder ähnlich angezeigt (keine Blackbox, Punkt 20).
+// Werte an die vom Nutzer vorgegebene Größenordnung angelehnt (Selten am
+// häufigsten, Unlimited extrem selten) - Selten/Mario ist der Starter und
+// kommt nie aus der Box, daher beginnt die Box-Tabelle bei Superselten.
 const RARITY_WEIGHTS = {
   common: 0,        // Mario ist Starter, kein Box-Drop
-  superRare: 40,
-  epic: 25,
-  mythic: 15,
-  legendary: 10,
-  superLegendary: 6,
-  exotic: 3,
-  unlimited: 0.3,
+  superRare: 22,
+  epic: 10,
+  mythic: 5,
+  legendary: 2,
+  superLegendary: 0.7,
+  exotic: 0.25,
+  unlimited: 0.05,
 };
 
 export function getDropTable() {
-  const dropable = SKINS.filter((s) => RARITY_WEIGHTS[s.rarity] > 0);
+  // Nur Skins, die tatsächlich per Box freischaltbar sind - Löndi kommt per
+  // Mission und Mario ist der Starter, beide dürfen die Box-Wahrscheinlichkeiten
+  // nicht verzerren. Alle anderen (auch "event"/"unlimited-drop") sind Box-Inhalt.
+  const dropable = SKINS.filter(
+    (s) => s.unlockMethod !== "mission" && s.unlockMethod !== "starter" && RARITY_WEIGHTS[s.rarity] > 0
+  );
   const total = dropable.reduce((sum, s) => sum + RARITY_WEIGHTS[s.rarity], 0);
   return dropable.map((s) => ({
     skin: s,

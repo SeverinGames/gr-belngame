@@ -3,9 +3,9 @@ import { RunManager } from "./runManager.js";
 import { RunPlayer } from "../player/player.js";
 import { getStarterSkin } from "../skins/skins.js";
 import {
-  renderHUD, renderDoors, renderOutcome, hideOutcome,
+  renderHUD, renderOutcome, hideOutcome,
   renderDecision, hideDecision, renderEndScreen, renderSkinBadge, showScreen,
-  renderBotRoster, renderBotFeed, renderDoorSuggestions,
+  renderBotRoster, renderBotFeed,
 } from "../ui/ui.js";
 import { loadProfile, saveProfile, applyRunRewards } from "../rewards/profile.js";
 import { canClaimDaily, claimDaily } from "../rewards/dailyReward.js";
@@ -14,12 +14,14 @@ import { openMysteryBox } from "../rewards/mysteryBox.js";
 import { audio } from "../audio/audio.js";
 import { socket } from "../network/socketClient.js";
 import { SERVER_URL } from "../network/config.js";
+import { WorldGame } from "../world/worldGame.js";
 import {
   renderProfileSummary, renderMissions, renderDailyStatus,
   renderMysteryBoxStatus, renderMysteryBoxResult,
 } from "../ui/ui.js";
 
 let runManager = null;
+let worldGame = null;
 let profile = loadProfile();
 let pendingDifficulty = "normal";
 
@@ -34,22 +36,31 @@ function startSoloRun(difficulty, saboteurPreset) {
   hideDecision();
   renderHUD(runManager);
   audio.playMood("normal");
+
+  if (worldGame) worldGame.destroy();
+  worldGame = new WorldGame({
+    canvas: el("#world-canvas"),
+    joystickEl: el("#mobile-joystick"),
+    interactBtnEl: el("#mobile-interact"),
+    runManager,
+    skinId: skin.id,
+    callbacks: { onDoorChosen },
+  });
+  worldGame.start();
   nextDoors();
 }
 
 function nextDoors() {
   const doors = runManager.generateDoors();
-  renderDoors(doors, onDoorChosen);
-  const suggestions = runManager.getBotDoorSuggestions(doors);
-  renderDoorSuggestions(suggestions);
+  worldGame.loadRoom(doors);
 }
 
 function onDoorChosen(doorId) {
   audio.sfx("doorOpen");
+  worldGame.room.doors = []; // Türen der aktuellen Runde deaktivieren, bis der nächste Raum geladen wird
   const { outcome } = runManager.chooseDoor(doorId);
   renderHUD(runManager);
   renderOutcome(outcome);
-  el("#doors").innerHTML = "";
   renderBotFeed(runManager.getBotReactions(outcome.kind));
 
   if (outcome.kind === "reward") audio.sfx("treasure");
@@ -84,6 +95,7 @@ function onDoorChosen(doorId) {
 
 function finishRun() {
   audio.stopMusic();
+  if (worldGame) worldGame.stop();
   const fled = runManager.result === "fled";
   const coinsEarned = runManager.player.securedCoins;
   const xpEarned = runManager.player.xp;

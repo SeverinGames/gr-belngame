@@ -277,3 +277,55 @@ body {
 .online-player-chip .op-hpbar { background: #2a3150; border-radius: 4px; height: 5px; overflow: hidden; margin-top: 4px; }
 .online-player-chip .op-hpbar > div { background: var(--danger); height: 100%; }
 .online-player-chip--dead { opacity: 0.4; }
+
+.world-viewport {
+  position: relative;
+  width: 100%;
+  height: 340px;
+  border-radius: 16px;
+  overflow: hidden;
+  background: #0d0f16;
+  margin-bottom: 16px;
+  touch-action: none;
+}
+#world-canvas { display: block; width: 100%; height: 100%; }
+
+.joystick {
+  position: absolute;
+  left: 16px;
+  bottom: 16px;
+  width: 88px;
+  height: 88px;
+  border-radius: 50%;
+  background: rgba(255,255,255,0.08);
+  border: 2px solid rgba(255,255,255,0.2);
+  touch-action: none;
+}
+.joystick-knob {
+  position: absolute;
+  top: 50%; left: 50%;
+  width: 40px; height: 40px;
+  margin: -20px 0 0 -20px;
+  border-radius: 50%;
+  background: rgba(107,224,255,0.5);
+  border: 2px solid var(--accent);
+  transition: transform 0.05s linear;
+  pointer-events: none;
+}
+
+.interact-btn {
+  position: absolute;
+  right: 16px;
+  bottom: 16px;
+  padding: 14px 18px;
+  border-radius: 999px;
+  border: 2px solid var(--accent-warm);
+  background: rgba(255,176,32,0.25);
+  color: #fff;
+  font-weight: 700;
+  font-size: 0.8rem;
+}
+
+@media (min-width: 700px) {
+  .joystick, .interact-btn { display: none; } /* Desktop nutzt Tastatur */
+}
