@@ -92,15 +92,21 @@ async function main() {
   let guardCounter = 0;
   while (!ended && guardCounter < 40) {
     guardCounter++;
-    const nextOrEnd = Promise.race([
+    const nextOrEndOrMinigame = Promise.race([
       host.waitFor("nextDoors", 5000).then((p) => ({ kind: "next", payload: p })),
       host.waitFor("gameEnded", 5000).then((p) => ({ kind: "end", payload: p })),
+      host.waitFor("minigameStarted", 5000).then((p) => ({ kind: "minigame", payload: p })),
     ]);
-    const result = await nextOrEnd;
+    const result = await nextOrEndOrMinigame;
     if (result.kind === "end") { ended = true; assert(true, `Runde endet nach ${guardCounter} Türen (Ergebnis: ${result.payload.state.result})`); break; }
+    if (result.kind === "minigame") {
+      // Reaktionsspiel während des generischen Durchspielens - Ergebnis einreichen und weitermachen
+      host.send("submitMinigameResult", { doorId: result.payload.doorId, reactionMs: 200 });
+      continue;
+    }
     host.send("chooseDoor", { doorId: result.payload.doors[0].id });
   }
-  assert(ended, "Spiel kommt zu einem echten Ende (nicht endlos)");
+  assert(ended, "Spiel kommt zu einem echten Ende (nicht endlos, auch mit zwischendurch gewürfelten Minispielen)");
 
   // --- Verlassen: Host-Übergabe an verbleibenden Spieler ---
   const guestSeesLeave = guest.waitFor("lobbyUpdate");

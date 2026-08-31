@@ -97,6 +97,29 @@ export class RunManager {
     return doors;
   }
 
+  // Kürzel für UI: ist diese Tür ein Minispiel statt sofortiger Text-Auflösung?
+  isMinigameDoor(door) {
+    return door.roomType.tags.includes("minigame");
+  }
+
+  // Wird von der UI aufgerufen, NACHDEM das Minispiel gespielt wurde - wendet
+  // das extern ermittelte Ergebnis genauso an wie chooseDoor() ein Zufallsereignis
+  resolveMinigameDoor(doorId, outcome) {
+    const door = this.currentDoors.find((d) => d.id === doorId);
+    if (!door) throw new Error("Ungültige Tür");
+    this.player.applyOutcome(outcome);
+    this.rng.reportOutcome(outcome.kind === "danger");
+    this.roomsCleared++;
+    if (outcome.kind === "danger") this.stats.dangerRoomsEntered++;
+
+    if (!this.player.alive) {
+      this.finished = true;
+      this.result = "died";
+      this.player.loseRiskCoins();
+    }
+    return { door, outcome, merchantOffer: null, secretFound: false };
+  }
+
   chooseDoor(doorId) {
     const door = this.currentDoors.find((d) => d.id === doorId);
     if (!door) throw new Error("Ungültige Tür");

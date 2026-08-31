@@ -2,6 +2,8 @@
 import { createServer } from "http";
 import { WebSocketServer } from "ws";
 import { PartyRun } from "./partyRun.js";
+import { createReactionChallenge, scoreReaction, reactionOutcome } from "../js/minigames/reactionGame.js";
+import { createHideChallenge, resolveHideOutcome, hideOutcomeMessage } from "../js/minigames/hideGame.js";
 
 const PORT = process.env.PORT || 3001;
 
@@ -65,6 +67,7 @@ wss.on("connection", (ws) => {
         case "toggleReady": return handleToggleReady(ws, payload);
         case "startGame": return handleStartGame(ws);
         case "chooseDoor": return handleChooseDoor(ws, payload);
+        case "submitMinigameResult": return handleSubmitMinigameResult(ws, payload);
         case "flee": return handleFlee(ws);
         case "leaveRoom": return handleLeave(ws);
         default: send(ws, "error", { message: `Unbekannter Nachrichtentyp: ${type}` });
@@ -85,9 +88,10 @@ function handleCreateRoom(ws, { name, skinId }) {
     hostId: ws.playerId,
     clients: new Map([[ws.playerId, ws]]),
     players: new Map([[ws.playerId, { name: name || "Spieler", skinId: skinId || "mario", ready: false }]]),
-    settings: { difficulty: "normal", botCount: 2, saboteurPreset: "normal" },
+    settings: { difficulty: "normal", botCount: 2, saboteurPreset: "normal", seed: undefined },
     status: "lobby",
     run: null,
+    pendingMinigame: null,
   };
   rooms.set(code, room);
   ws.roomCode = code;
@@ -144,11 +148,64 @@ function handleChooseDoor(ws, { doorId }) {
   const room = requireRoom(ws);
   if (!room || !room.run || room.run.finished) return;
 
+  const door = room.run.currentDoors.find((d) => d.id === doorId);
+  if (!door) return;
+
+  if (door.roomType.id === "reactionGame") {
+    if (room.pendingMinigame) return; // läuft schon eins
+    const challenge = createReactionChallenge(() => room.run.rng.next(), room.run.dynamicDifficultyFactor);
+    room.pendingMinigame = { doorId, type: "reactionGame", challenge, resolved: false };
+    broadcast(room, "minigameStarted", { doorId, type: "reactionGame", challenge });
+    return;
+  }
+
+  if (door.roomType.id === "hideGame") {
+    // Multiplayer-Bewegung für das Versteckspiel folgt in einer späteren Phase.
+    // Platzhalter mit fairer, identischer Erfolgswahrscheinlichkeit: der Server
+    // "versteckt" die Gruppe automatisch an einem zufälligen von N Plätzen.
+    const challenge = createHideChallenge(() => room.run.rng.next(), room.run.dynamicDifficultyFactor);
+    const autoSpot = Math.floor(room.run.rng.next() * challenge.spotCount);
+    const result = resolveHideOutcome(autoSpot, challenge.spotCount, () => room.run.rng.next());
+    const outcome = hideOutcomeMessage(result, room.run.dynamicDifficultyFactor);
+    const { outcome: applied } = room.run.resolveMinigameDoor(doorId, outcome);
+    finishDoorResolution(room, applied);
+    return;
+  }
+
   const { outcome, merchantOffer, secretFound } = room.run.chooseDoor(doorId);
   const botReactions = room.run.getBotReactions(outcome.kind);
   broadcast(room, "roomResolved", {
     outcome, merchantOffer, secretFound, botReactions, state: room.run.toPublicState(),
   });
+  finishDoorResolution(room, outcome, { alreadyBroadcastResolved: true });
+}
+
+function handleSubmitMinigameResult(ws, { doorId, reactionMs }) {
+  const room = requireRoom(ws);
+  if (!room || !room.pendingMinigame || room.pendingMinigame.doorId !== doorId || room.pendingMinigame.resolved) return;
+  room.pendingMinigame.resolved = true;
+
+  const result = scoreReaction(reactionMs, room.pendingMinigame.challenge.windowMs);
+  const outcome = reactionOutcome(result, room.run.dynamicDifficultyFactor);
+  const { outcome: applied } = room.run.resolveMinigameDoor(doorId, outcome);
+  room.pendingMinigame = null;
+
+  broadcast(room, "roomResolved", {
+    outcome: applied, merchantOffer: null, secretFound: false,
+    botReactions: room.run.getBotReactions(applied.kind), state: room.run.toPublicState(),
+  });
+  finishDoorResolution(room, applied, { alreadyBroadcastResolved: true });
+}
+
+// Gemeinsamer Abschluss nach jeder Art von Tür-Auflösung (Zufallsereignis,
+// Reaktionsspiel oder Versteckspiel-Platzhalter) - vermeidet doppelten Code.
+function finishDoorResolution(room, outcome, { alreadyBroadcastResolved = false } = {}) {
+  if (!alreadyBroadcastResolved) {
+    broadcast(room, "roomResolved", {
+      outcome, merchantOffer: null, secretFound: false,
+      botReactions: room.run.getBotReactions(outcome.kind), state: room.run.toPublicState(),
+    });
+  }
 
   if (room.run.finished) {
     const reveal = room.run.revealSaboteur();

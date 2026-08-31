@@ -329,3 +329,52 @@ body {
 @media (min-width: 700px) {
   .joystick, .interact-btn { display: none; } /* Desktop nutzt Tastatur */
 }
+
+.minigame-overlay {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  background: rgba(13,15,22,0.75);
+  backdrop-filter: blur(2px);
+  z-index: 5;
+}
+
+.minigame-overlay--global {
+  position: fixed;
+  z-index: 50;
+}
+
+.reaction-status {
+  font-size: 1.1rem;
+  color: var(--text-dim);
+  margin-bottom: 12px;
+}
+.reaction-symbol {
+  font-size: 5rem;
+  color: var(--accent-warm);
+  text-shadow: 0 0 30px var(--accent-warm);
+  animation: reactionPop 0.15s ease-out;
+}
+@keyframes reactionPop {
+  from { transform: scale(0.4); opacity: 0; }
+  to { transform: scale(1); opacity: 1; }
+}
+
+.hide-timer-bar {
+  width: 80%;
+  height: 10px;
+  background: rgba(255,255,255,0.15);
+  border-radius: 6px;
+  overflow: hidden;
+  margin-bottom: 14px;
+}
+.hide-timer-bar > div {
+  height: 100%;
+  background: var(--danger);
+  width: 100%;
+  transition: width 0.1s linear;
+}
+.hide-hint { color: var(--text); font-size: 0.95rem; text-align: center; padding: 0 20px; }

@@ -15,6 +15,8 @@ import { audio } from "../audio/audio.js";
 import { socket } from "../network/socketClient.js";
 import { SERVER_URL } from "../network/config.js";
 import { WorldGame } from "../world/worldGame.js";
+import { createReactionChallenge, scoreReaction, reactionOutcome } from "../minigames/reactionGame.js";
+import { createHideChallenge, resolveHideOutcome, hideOutcomeMessage } from "../minigames/hideGame.js";
 import {
   renderProfileSummary, renderMissions, renderDailyStatus,
   renderMysteryBoxStatus, renderMysteryBoxResult,
@@ -28,7 +30,9 @@ let pendingDifficulty = "normal";
 function startSoloRun(difficulty, saboteurPreset) {
   const skin = getStarterSkin();
   const player = new RunPlayer("Du", skin.id);
-  runManager = new RunManager({ difficulty, player, botCount: 2, saboteurPreset });
+  const urlSeed = new URLSearchParams(location.search).get("seed");
+  const seed = urlSeed ? Number(urlSeed) : undefined;
+  runManager = new RunManager({ difficulty, player, botCount: 2, saboteurPreset, seed });
   renderSkinBadge(skin.id);
   renderBotRoster(runManager.bots);
   showScreen("screen-game");
@@ -44,7 +48,7 @@ function startSoloRun(difficulty, saboteurPreset) {
     interactBtnEl: el("#mobile-interact"),
     runManager,
     skinId: skin.id,
-    callbacks: { onDoorChosen },
+    callbacks: { onDoorChosen, onHideTick: updateHideTimerBar },
   });
   worldGame.start();
   nextDoors();
@@ -56,9 +60,20 @@ function nextDoors() {
 }
 
 function onDoorChosen(doorId) {
+  const door = runManager.currentDoors.find((d) => d.id === doorId);
+  if (door && runManager.isMinigameDoor(door)) {
+    audio.sfx("doorOpen");
+    if (door.roomType.id === "reactionGame") return startReactionMinigame(doorId);
+    if (door.roomType.id === "hideGame") return startHideMinigameFlow(doorId);
+  }
   audio.sfx("doorOpen");
   worldGame.room.doors = []; // Türen der aktuellen Runde deaktivieren, bis der nächste Raum geladen wird
   const { outcome } = runManager.chooseDoor(doorId);
+  handleResolvedOutcome(outcome);
+}
+
+// Gemeinsame Weiterverarbeitung, egal ob Tür-Zufallsereignis oder Minispiel-Ergebnis
+function handleResolvedOutcome(outcome) {
   renderHUD(runManager);
   renderOutcome(outcome);
   renderBotFeed(runManager.getBotReactions(outcome.kind));
@@ -91,6 +106,84 @@ function onDoorChosen(doorId) {
       },
     });
   }, 700);
+}
+
+// --- Reaktionsspiel: gemeinsame Anzeige-/Eingabelogik für Solo UND Online ---
+// callback(reactionMs) wird mit reactionMs=-1 (zu früh) oder der gemessenen
+// Zeit aufgerufen; die eigentliche Auswertung entscheidet der Aufrufer.
+function runReactionMinigamePresentation(challenge, callback) {
+  const overlay = el("#minigame-reaction");
+  const statusEl = el("#reaction-status");
+  const symbolEl = el("#reaction-symbol");
+  overlay.classList.remove("hidden");
+  statusEl.textContent = "Bereit machen...";
+  symbolEl.classList.add("hidden");
+
+  let revealTime = null;
+  let finished = false;
+
+  const cleanup = () => {
+    window.removeEventListener("keydown", onKey);
+    overlay.removeEventListener("click", onTap);
+    overlay.classList.add("hidden");
+  };
+  const finish = (reactionMs) => {
+    if (finished) return;
+    finished = true;
+    cleanup();
+    callback(reactionMs);
+  };
+  const onKey = (e) => {
+    if (e.key === "Escape") return;
+    finish(revealTime === null ? -1 : performance.now() - revealTime);
+  };
+  const onTap = () => finish(revealTime === null ? -1 : performance.now() - revealTime);
+
+  window.addEventListener("keydown", onKey);
+  overlay.addEventListener("click", onTap);
+
+  setTimeout(() => {
+    if (finished) return;
+    statusEl.textContent = "JETZT!";
+    symbolEl.textContent = challenge.symbol;
+    symbolEl.classList.remove("hidden");
+    revealTime = performance.now();
+    setTimeout(() => finish(challenge.windowMs + 1), challenge.windowMs + 50);
+  }, challenge.revealDelayMs);
+}
+
+// --- Reaktionsspiel-Ablauf (Solo) ---
+function startReactionMinigame(doorId) {
+  worldGame.room.doors = [];
+  const challenge = createReactionChallenge(() => runManager.rng.next(), runManager.dynamicDifficultyFactor);
+  runReactionMinigamePresentation(challenge, (reactionMs) => {
+    const result = reactionMs < 0
+      ? { success: false, reason: "too-early", speedRatio: 0 }
+      : scoreReaction(reactionMs, challenge.windowMs);
+    const outcome = reactionOutcome(result, runManager.dynamicDifficultyFactor);
+    const { outcome: appliedOutcome } = runManager.resolveMinigameDoor(doorId, outcome);
+    handleResolvedOutcome(appliedOutcome);
+  });
+}
+
+// --- Versteckspiel-Ablauf ---
+function startHideMinigameFlow(doorId) {
+  const challenge = createHideChallenge(() => runManager.rng.next(), runManager.dynamicDifficultyFactor);
+  el("#minigame-hide").classList.remove("hidden");
+  updateHideTimerBar(1);
+
+  worldGame.startHideChallenge(challenge, (hiddenSpotIndex, spotCount) => {
+    el("#minigame-hide").classList.add("hidden");
+    const result = resolveHideOutcome(hiddenSpotIndex, spotCount, () => runManager.rng.next());
+    const outcome = hideOutcomeMessage(result, runManager.dynamicDifficultyFactor);
+    const { outcome: appliedOutcome } = runManager.resolveMinigameDoor(doorId, outcome);
+    handleResolvedOutcome(appliedOutcome);
+  });
+}
+
+function updateHideTimerBar(fraction) {
+  const fill = el("#hide-timer-fill");
+  if (fill) fill.style.width = `${Math.round(fraction * 100)}%`;
 }
 
 function finishRun() {
@@ -313,6 +406,10 @@ function setupSocketHandlers() {
     hideOnlineDecision();
     renderOnlineDoors(doors);
   });
+  socket.on("minigameStarted", ({ doorId, type, challenge }) => {
+    el("#online-doors").innerHTML = "";
+    if (type === "reactionGame") startOnlineReactionMinigame(doorId, challenge);
+  });
   socket.on("roomResolved", ({ outcome, state, botReactions }) => {
     renderOnlinePlayers(state.players);
     renderOnlineOutcome(outcome);
@@ -398,6 +495,12 @@ function renderOnlineDecision(exitAvailable) {
   box.classList.remove("hidden");
 }
 function hideOnlineDecision() { el("#online-decision").classList.add("hidden"); el("#online-decision").innerHTML = ""; }
+
+function startOnlineReactionMinigame(doorId, challenge) {
+  runReactionMinigamePresentation(challenge, (reactionMs) => {
+    socket.send("submitMinigameResult", { doorId, reactionMs });
+  });
+}
 
 function renderOnlineEnd(state, reveal) {
   el("#end-title").textContent = state.result === "fled" ? "ENTKOMMEN!" : "GEFANGEN...";

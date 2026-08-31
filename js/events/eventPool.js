@@ -93,6 +93,11 @@ export const EVENT_RESOLVERS = {
     const pick = pool[rng.nextInt(pool.length)];
     return EVENT_RESOLVERS[pick](rng, ctx);
   },
+  // Diese beiden werden normalerweise NICHT hierüber aufgelöst, sondern über
+  // das jeweilige Minispiel (js/minigames/) - dies ist nur ein Sicherheitsnetz,
+  // falls resolveRoom versehentlich ohne gespieltes Minispiel aufgerufen wird.
+  reactionGame: () => outcome("neutral", "Reaktionstest übersprungen.", {}),
+  hideGame: () => outcome("neutral", "Versteckspiel übersprungen.", {}),
 };
 
 function outcome(kind, message, deltas) {

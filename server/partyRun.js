@@ -68,6 +68,29 @@ export class PartyRun {
 
   // Wendet das Ergebnis auf ALLE lebenden menschlichen Spieler gemeinsam an
   // (geteiltes Coop-Erlebnis - siehe Punkt 27/28 "gemeinsam ein Gebäude betreten")
+  isMinigameDoor(door) {
+    return door.roomType.tags.includes("minigame");
+  }
+
+  resolveMinigameDoor(doorId, outcome) {
+    const door = this.currentDoors.find((d) => d.id === doorId);
+    if (!door) throw new Error("Ungültige Tür");
+    for (const player of this.humans.values()) {
+      if (!player.alive) continue;
+      player.applyOutcome(outcome);
+    }
+    this.rng.reportOutcome(outcome.kind === "danger");
+    this.roomsCleared++;
+    if (outcome.kind === "danger") this.stats.dangerRoomsEntered++;
+
+    if (!this.anyHumanAlive()) {
+      this.finished = true;
+      this.result = "died";
+      for (const p of this.humans.values()) p.loseRiskCoins();
+    }
+    return { door, outcome };
+  }
+
   chooseDoor(doorId) {
     const door = this.currentDoors.find((d) => d.id === doorId);
     if (!door) throw new Error("Ungültige Tür");

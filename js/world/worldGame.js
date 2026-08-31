@@ -1,8 +1,8 @@
 // js/world/worldGame.js
 import { WorldPlayer } from "./player.js";
 import { InputController } from "./inputController.js";
-import { buildRoomLayout, isInsideRoom, distanceToDoor, INTERACT_RANGE } from "./roomLayout.js";
-import { drawRoom, drawPlayer, drawInteractPrompt } from "./roomRenderer.js";
+import { buildRoomLayout, isInsideRoom, distanceToDoor, INTERACT_RANGE, DOOR_SLOTS } from "./roomLayout.js";
+import { drawRoom, drawPlayer, drawInteractPrompt, drawHideSpots } from "./roomRenderer.js";
 import { getSkinPalette } from "./characterSprite.js";
 
 export class WorldGame {
@@ -43,6 +43,45 @@ export class WorldGame {
     this.player = new WorldPlayer(this.room.spawn.x, this.room.spawn.y);
   }
 
+  // --- Versteckspiel: nutzt dieselbe Bewegung/Kamera, aber Verstecke statt Türen ---
+  startHideChallenge(challenge, onResult) {
+    this.hideMode = true;
+    this.hideResult = null;
+    this.hideCallback = onResult;
+    this.hideTimeRemaining = challenge.timeLimitMs;
+    this.hideTimeTotal = challenge.timeLimitMs;
+
+    const slots = DOOR_SLOTS.slice(0, challenge.spotCount);
+    this.hideSpots = slots.map((slot, i) => ({ id: i, ...slot, width: 46, height: 46 }));
+    this.room.doors = []; // echte Türen währenddessen deaktiviert
+    this.player = new WorldPlayer(this.room.spawn.x, this.room.spawn.y);
+  }
+
+  _updateHideMode(dt) {
+    this.hideTimeRemaining -= dt * 1000;
+    if (this.callbacks.onHideTick) {
+      this.callbacks.onHideTick(Math.max(0, this.hideTimeRemaining / this.hideTimeTotal));
+    }
+
+    const nearSpot = this.hideSpots.find((s) => distanceToDoor(s, this.player.x, this.player.y) < INTERACT_RANGE);
+    this.nearestDoor = nearSpot ?? null;
+
+    if (nearSpot && this.input.consumeInteract()) {
+      this._finishHide(nearSpot.id);
+      return;
+    }
+    if (this.hideTimeRemaining <= 0) {
+      this._finishHide(null);
+    }
+  }
+
+  _finishHide(spotIndex) {
+    this.hideMode = false;
+    const cb = this.hideCallback;
+    this.hideCallback = null;
+    if (cb) cb(spotIndex, this.hideSpots.length);
+  }
+
   start() {
     this.running = true;
     this._lastTime = performance.now();
@@ -65,10 +104,14 @@ export class WorldGame {
     this._lastTime = time;
 
     this.player.update(dt, this.input.state, this.room);
-    this.nearestDoor = this._findNearbyDoor();
 
-    if (this.nearestDoor && this.input.consumeInteract()) {
-      this.callbacks.onDoorChosen(this.nearestDoor.id);
+    if (this.hideMode) {
+      this._updateHideMode(dt);
+    } else {
+      this.nearestDoor = this._findNearbyDoor();
+      if (this.nearestDoor && this.input.consumeInteract()) {
+        this.callbacks.onDoorChosen(this.nearestDoor.id);
+      }
     }
 
     this._draw();
@@ -94,10 +137,12 @@ export class WorldGame {
     const camY = clamp(this.player.y - this.viewHeight / 2, 0, Math.max(0, this.room.height - this.viewHeight));
 
     drawRoom(ctx, this.room, camX, camY);
+    if (this.hideMode) drawHideSpots(ctx, this.hideSpots, camX, camY);
     drawPlayer(ctx, this.player, camX, camY, this.palette);
 
     if (this.nearestDoor) {
-      drawInteractPrompt(ctx, this.nearestDoor.x - camX, this.nearestDoor.y - camY, "E - ÖFFNEN");
+      const label = this.hideMode ? "E - VERSTECKEN" : "E - ÖFFNEN";
+      drawInteractPrompt(ctx, this.nearestDoor.x - camX, this.nearestDoor.y - camY, label);
     }
   }
 }

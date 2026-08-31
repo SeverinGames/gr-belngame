@@ -22,6 +22,8 @@ export const ROOM_TYPES = [
   { id: "teamwork",     label: "Teamwork-Raum",     weight: 4,  tags: ["neutral"] },
   { id: "saboteur",     label: "Saboteur-Raum",     weight: 3,  tags: ["strange", "danger"] },
   { id: "mystery",      label: "Mystery-Raum",      weight: 7,  tags: ["strange"] },
+  { id: "reactionGame", label: "Reaktionstest",     weight: 6,  tags: ["neutral", "minigame"] },
+  { id: "hideGame",     label: "Versteckspiel",     weight: 5,  tags: ["danger", "minigame"] },
 ];
 
 export function getRoomType(id) {

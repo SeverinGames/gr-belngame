@@ -8,7 +8,7 @@ export const ROOM_HEIGHT = 420;
 const WALL = 24;
 
 // Feste Wand-Slots, in dieser Reihenfolge belegt (bis zu 4 Türen)
-const DOOR_SLOTS = [
+export const DOOR_SLOTS = [
   { wall: "right", x: ROOM_WIDTH - WALL, y: ROOM_HEIGHT / 2, facing: "left" },
   { wall: "left", x: WALL, y: ROOM_HEIGHT / 2, facing: "right" },
   { wall: "bottom", x: ROOM_WIDTH / 2, y: ROOM_HEIGHT - WALL, facing: "up" },

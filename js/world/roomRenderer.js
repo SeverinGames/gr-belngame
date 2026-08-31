@@ -69,6 +69,26 @@ export function drawPlayer(ctx, player, cameraX, cameraY, palette) {
   ctx.restore();
 }
 
+const HIDE_SPOT_ICONS = ["🗄", "🛏", "📦", "🚪"]; // Schrank, Bett, Kiste, Nebentür
+
+export function drawHideSpots(ctx, spots, cameraX, cameraY) {
+  ctx.save();
+  ctx.translate(-cameraX, -cameraY);
+  spots.forEach((spot, i) => {
+    ctx.fillStyle = "#2f6b4f";
+    ctx.strokeStyle = "#5fd99a";
+    ctx.lineWidth = 3;
+    ctx.beginPath();
+    ctx.roundRect ? ctx.roundRect(spot.x - 23, spot.y - 23, 46, 46, 8) : ctx.rect(spot.x - 23, spot.y - 23, 46, 46);
+    ctx.fill();
+    ctx.stroke();
+    ctx.font = "24px sans-serif";
+    ctx.textAlign = "center";
+    ctx.fillText(HIDE_SPOT_ICONS[i % HIDE_SPOT_ICONS.length], spot.x, spot.y + 8);
+  });
+  ctx.restore();
+}
+
 export function drawInteractPrompt(ctx, screenX, screenY, label) {
   ctx.save();
   ctx.font = "600 13px sans-serif";

@@ -165,6 +165,11 @@
           <div class="joystick-knob"></div>
         </div>
         <button id="mobile-interact" class="interact-btn">ÖFFNEN</button>
+
+        <div id="minigame-hide" class="minigame-overlay hidden">
+          <div class="hide-timer-bar"><div id="hide-timer-fill"></div></div>
+          <div class="hide-hint">Lauf zu einem Versteck und drück E!</div>
+        </div>
       </div>
 
       <div id="outcome" class="outcome outcome--hidden"></div>
@@ -179,6 +184,12 @@
       <button id="btn-play-again" class="btn btn--primary">Zurück zum Menü</button>
     </section>
 
+  </div>
+
+  <!-- Global: über jedem Screen (Solo-Welt UND Online) einblendbar -->
+  <div id="minigame-reaction" class="minigame-overlay minigame-overlay--global hidden">
+    <div id="reaction-status" class="reaction-status">Bereit machen...</div>
+    <div id="reaction-symbol" class="reaction-symbol hidden">⚡</div>
   </div>
 
   <script type="module" src="js/game/main.js"></script>
