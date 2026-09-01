@@ -24,6 +24,7 @@ export const ROOM_TYPES = [
   { id: "mystery",      label: "Mystery-Raum",      weight: 7,  tags: ["strange"] },
   { id: "reactionGame", label: "Reaktionstest",     weight: 6,  tags: ["neutral", "minigame"] },
   { id: "hideGame",     label: "Versteckspiel",     weight: 5,  tags: ["danger", "minigame"] },
+  { id: "lockedDoor",   label: "Verschlossene Tür", weight: 4,  tags: ["neutral"] },
 ];
 
 export function getRoomType(id) {

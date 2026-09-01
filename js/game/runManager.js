@@ -1,6 +1,7 @@
 // js/game/runManager.js
 import { RandomEngine } from "../rooms/randomEngine.js";
 import { resolveRoom, getMerchantOffer, attemptSecretSearch } from "../events/eventPool.js";
+import { hasItem } from "../inventory/inventory.js";
 import { RunPlayer } from "../player/player.js";
 import { createBot, botPickDoor, botVoteFlee, botComment } from "../bots/personalities.js";
 import { assignSaboteur, saboteurDoorScore, checkTaskSuccess } from "../saboteur/saboteur.js";
@@ -123,7 +124,7 @@ export class RunManager {
   chooseDoor(doorId) {
     const door = this.currentDoors.find((d) => d.id === doorId);
     if (!door) throw new Error("Ungültige Tür");
-    const ctx = { difficultyFactor: this.dynamicDifficultyFactor };
+    const ctx = { difficultyFactor: this.dynamicDifficultyFactor, hasKey: hasItem(this.player.inventory, "key") };
     const outcome = resolveRoom(door.roomType, this.rng, ctx);
     this.player.applyOutcome(outcome);
     this.rng.reportOutcome(outcome.kind === "danger");
@@ -170,6 +171,10 @@ export class RunManager {
     if (this.roomsCleared < 2) return false;
     const chance = Math.min(0.8, 0.15 + this.roomsCleared * 0.06);
     return this.rng.next() < chance;
+  }
+
+  useItem(itemId) {
+    return this.player.useItem(itemId);
   }
 
   flee() {

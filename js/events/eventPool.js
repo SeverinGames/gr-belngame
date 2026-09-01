@@ -9,7 +9,11 @@ const CLAMP = (v, min, max) => Math.max(min, Math.min(max, v));
 export const EVENT_RESOLVERS = {
   treasure: (rng, ctx) => {
     const amount = 15 + Math.floor(rng.next() * 25 * ctx.difficultyFactor);
-    return outcome("reward", `Ihr findet eine Truhe: +${amount} Münzen.`, { coins: amount });
+    const dropsBattery = rng.next() < 0.2;
+    const msg = dropsBattery
+      ? `Ihr findet eine Truhe: +${amount} Münzen und eine Batterie.`
+      : `Ihr findet eine Truhe: +${amount} Münzen.`;
+    return outcome("reward", msg, { coins: amount }, dropsBattery ? { item: "battery" } : {});
   },
   trap: (rng, ctx) => {
     const variants = [
@@ -71,7 +75,17 @@ export const EVENT_RESOLVERS = {
   },
   secret: (rng) => {
     const amount = 30 + Math.floor(rng.next() * 40);
-    return outcome("reward", `Geheimraum entdeckt! +${amount} Münzen.`, { coins: amount });
+    const item = rng.next() < 0.5 ? "medkit" : "key";
+    const itemLabel = item === "medkit" ? "ein Medkit" : "einen Schlüssel";
+    return outcome("reward", `Geheimraum entdeckt! +${amount} Münzen und ${itemLabel}.`, { coins: amount }, { item });
+  },
+  lockedDoor: (rng, ctx) => {
+    if (ctx.hasKey) {
+      const coins = 20 + Math.floor(rng.next() * 30);
+      return outcome("reward", `Mit eurem Schlüssel öffnet sich die Tür mühelos. +${coins} Münzen.`, { coins }, { consumesItem: "key" });
+    }
+    const dmg = 15 + Math.floor(rng.next() * 12 * ctx.difficultyFactor);
+    return outcome("danger", `Ohne Schlüssel müsst ihr die Tür aufbrechen. -${dmg} HP.`, { hp: -dmg });
   },
   random: (rng, ctx) => {
     const pool = ["treasure", "trap", "puzzle", "safe"];
@@ -100,13 +114,14 @@ export const EVENT_RESOLVERS = {
   hideGame: () => outcome("neutral", "Versteckspiel übersprungen.", {}),
 };
 
-function outcome(kind, message, deltas) {
+function outcome(kind, message, deltas, extra = {}) {
   return {
     kind, // 'reward' | 'danger' | 'neutral' | 'safe' | 'strange'
     message,
     coins: deltas.coins ?? 0,
     hp: deltas.hp ?? 0,
     xp: deltas.xp ?? 0,
+    ...extra, // z.B. { item: "key" } (Fund) oder { consumesItem: "key" } (Verbrauch)
   };
 }
 

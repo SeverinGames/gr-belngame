@@ -378,3 +378,20 @@ body {
   transition: width 0.1s linear;
 }
 .hide-hint { color: var(--text); font-size: 0.95rem; text-align: center; padding: 0 20px; }
+
+.inventory-bar { display: flex; gap: 8px; margin-bottom: 12px; flex-wrap: wrap; }
+.inventory-item {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  background: var(--panel);
+  border: 1px solid #2a3150;
+  border-radius: 10px;
+  padding: 6px 10px;
+  font-size: 0.85rem;
+}
+.inventory-item--usable {
+  border-color: var(--safe);
+  cursor: pointer;
+}
+.inventory-item__count { color: var(--text-dim); font-size: 0.75rem; }

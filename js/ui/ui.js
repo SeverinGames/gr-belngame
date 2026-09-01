@@ -1,5 +1,6 @@
 // js/ui/ui.js
 import { getSkinById, RARITY } from "../skins/skins.js";
+import { listInventory } from "../inventory/inventory.js";
 
 const el = (sel) => document.querySelector(sel);
 
@@ -10,6 +11,27 @@ export function renderHUD(runManager) {
   el("#hud-secured").textContent = p.securedCoins;
   el("#hud-risk").textContent = p.riskCoins;
   el("#hud-rooms").textContent = runManager.roomsCleared;
+  renderInventoryBar(p.inventory, runManager);
+}
+
+export function renderInventoryBar(inventory, runManager) {
+  const box = el("#inventory-bar");
+  if (!box) return;
+  box.innerHTML = "";
+  listInventory(inventory).forEach(({ def, count }) => {
+    const chip = document.createElement("div");
+    const usable = !!def.useEffect;
+    chip.className = `inventory-item ${usable ? "inventory-item--usable" : ""}`;
+    chip.title = def.description;
+    chip.innerHTML = `${def.icon} ${def.name} <span class="inventory-item__count">x${count}</span>`;
+    if (usable) {
+      chip.addEventListener("click", () => {
+        runManager.useItem(def.id);
+        renderHUD(runManager);
+      });
+    }
+    box.appendChild(chip);
+  });
 }
 
 export function renderDoors(doors, onChoose) {
