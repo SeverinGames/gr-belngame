@@ -16,7 +16,7 @@ export const DOOR_SLOTS = [
 ];
 
 // doors: Array aus generateDoors() (id, roomType, shownHint)
-export function buildRoomLayout(doors) {
+export function buildRoomLayout(doors, theme = "lobby") {
   const placedDoors = doors.map((door, i) => ({
     ...door,
     ...DOOR_SLOTS[i % DOOR_SLOTS.length],
@@ -28,6 +28,7 @@ export function buildRoomLayout(doors) {
     height: ROOM_HEIGHT,
     wallThickness: WALL,
     doors: placedDoors,
+    theme,
     // Spawnpunkt in der Raummitte, leicht versetzt von Türen
     spawn: { x: ROOM_WIDTH / 2, y: ROOM_HEIGHT / 2 },
   };

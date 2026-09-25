@@ -11,7 +11,7 @@ export const REACTION_GAME = {
   maxPlayers: 6,
 };
 
-const SYMBOLS = ["⚡", "★", "◆", "●"];
+const SYMBOLS = ["▲", "★", "◆", "●"];
 
 // Erzeugt eine neue Challenge. difficultyFactor > 1 = schwerer (kürzeres Fenster).
 export function createReactionChallenge(rng, difficultyFactor = 1) {

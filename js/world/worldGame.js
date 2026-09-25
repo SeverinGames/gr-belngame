@@ -38,8 +38,8 @@ export class WorldGame {
   }
 
   // Lädt einen neuen Raum aus den (bereits getesteten) generierten Türen
-  loadRoom(doors) {
-    this.room = buildRoomLayout(doors);
+  loadRoom(doors, theme = "lobby") {
+    this.room = buildRoomLayout(doors, theme);
     this.player = new WorldPlayer(this.room.spawn.x, this.room.spawn.y);
   }
 

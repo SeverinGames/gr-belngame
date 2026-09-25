@@ -23,7 +23,7 @@ export function renderInventoryBar(inventory, runManager) {
     const usable = !!def.useEffect;
     chip.className = `inventory-item ${usable ? "inventory-item--usable" : ""}`;
     chip.title = def.description;
-    chip.innerHTML = `${def.icon} ${def.name} <span class="inventory-item__count">x${count}</span>`;
+    chip.innerHTML = `<span class="inventory-item__icon">${def.icon}</span>${def.name} <span class="inventory-item__count">x${count}</span>`;
     if (usable) {
       chip.addEventListener("click", () => {
         runManager.useItem(def.id);
@@ -42,7 +42,7 @@ export function renderDoors(doors, onChoose) {
     btn.className = `door door--${door.shownHint}`;
     btn.dataset.doorId = door.id;
     btn.innerHTML = `
-      <span class="door__icon">${door.shownHint === "danger" ? "⚠" : "✦"}</span>
+      <span class="door__icon"></span>
       <span class="door__label">Tür ${door.id + 1}</span>
     `;
     btn.addEventListener("click", () => onChoose(door.id));
@@ -95,7 +95,7 @@ export function renderEndScreen(runManager, saboteurReveal) {
 
   const saboBox = el("#end-saboteur");
   if (saboteurReveal && saboteurReveal.hadSaboteur) {
-    saboBox.textContent = `🎭 Der Saboteur war ${saboteurReveal.bot.name}! Aufgabe „${saboteurReveal.task.label}" wurde ${saboteurReveal.success ? "ERFÜLLT" : "NICHT erfüllt"}.`;
+    saboBox.textContent = `Der Saboteur war ${saboteurReveal.bot.name}! Aufgabe „${saboteurReveal.task.label}" wurde ${saboteurReveal.success ? "ERFÜLLT" : "NICHT erfüllt"}.`;
     saboBox.classList.remove("hidden");
   } else {
     saboBox.classList.add("hidden");

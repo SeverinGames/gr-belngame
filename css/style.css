@@ -7,7 +7,7 @@
   --safe: #4ee39a;
   --text: #eef2ff;
   --text-dim: #8f96b3;
-  font-family: "Segoe UI", system-ui, sans-serif;
+  font-family: "Sora", "Segoe UI", system-ui, sans-serif;
 }
 
 * { box-sizing: border-box; }
@@ -107,7 +107,15 @@ body {
 }
 .door--danger { border-color: rgba(255, 84, 112, 0.5); }
 .door--calm { border-color: rgba(107, 224, 255, 0.4); }
-.door__icon { font-size: 1.6rem; }
+.door__icon {
+  display: block;
+  width: 14px;
+  height: 14px;
+  border-radius: 50%;
+  margin: 0 auto 4px;
+}
+.door--danger .door__icon { background: var(--danger); box-shadow: 0 0 8px var(--danger); }
+.door--calm .door__icon { background: var(--accent); box-shadow: 0 0 8px var(--accent); }
 
 .outcome {
   background: var(--panel);
@@ -395,3 +403,54 @@ body {
   cursor: pointer;
 }
 .inventory-item__count { color: var(--text-dim); font-size: 0.75rem; }
+.inventory-item__icon { width: 16px; height: 16px; display: inline-flex; color: var(--text); vertical-align: -3px; }
+.inventory-item__icon svg { width: 100%; height: 100%; }
+
+.locker-preview {
+  position: relative;
+  width: 100%;
+  height: 260px;
+  border-radius: 16px;
+  background: radial-gradient(circle at 50% 30%, #1a2036 0%, #0d0f16 70%);
+  margin-bottom: 16px;
+  overflow: hidden;
+}
+#locker-canvas { width: 100%; height: 100%; display: block; }
+#locker-rarity-badge {
+  position: absolute;
+  bottom: 12px;
+  left: 50%;
+  transform: translateX(-50%);
+  margin: 0;
+}
+
+.locker-skin-list {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 10px;
+  margin-bottom: 16px;
+}
+.locker-skin-card {
+  background: var(--panel);
+  border: 2px solid #2a3150;
+  border-radius: 12px;
+  padding: 10px 4px;
+  text-align: center;
+  font-size: 0.75rem;
+  cursor: pointer;
+}
+.locker-skin-card--selected { border-color: var(--accent); box-shadow: 0 0 10px rgba(107,224,255,0.4); }
+.locker-skin-card--locked { opacity: 0.4; cursor: not-allowed; }
+.locker-skin-card__swatch {
+  width: 28px; height: 28px;
+  border-radius: 50%;
+  margin: 0 auto 6px;
+}
+
+.site-footer {
+  text-align: center;
+  font-size: 0.72rem;
+  color: var(--text-dim);
+  padding: 16px 0 10px;
+  opacity: 0.6;
+}

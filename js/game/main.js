@@ -15,6 +15,8 @@ import { audio } from "../audio/audio.js";
 import { socket } from "../network/socketClient.js";
 import { SERVER_URL } from "../network/config.js";
 import { WorldGame } from "../world/worldGame.js";
+import { drawCharacter, getSkinPalette } from "../world/characterSprite.js";
+import { SKINS, RARITY, getSkinById } from "../skins/skins.js";
 import { createReactionChallenge, scoreReaction, reactionOutcome } from "../minigames/reactionGame.js";
 import { createHideChallenge, resolveHideOutcome, hideOutcomeMessage } from "../minigames/hideGame.js";
 import {
@@ -26,9 +28,11 @@ let runManager = null;
 let worldGame = null;
 let profile = loadProfile();
 let pendingDifficulty = "normal";
+let pendingRoomTheme = "lobby";
 
 function startSoloRun(difficulty, saboteurPreset) {
-  const skin = getStarterSkin();
+  pendingRoomTheme = "lobby";
+  const skin = getSkinById(profile.equippedSkin) ?? getStarterSkin();
   const player = new RunPlayer("Du", skin.id);
   const urlSeed = new URLSearchParams(location.search).get("seed");
   const seed = urlSeed ? Number(urlSeed) : undefined;
@@ -56,11 +60,12 @@ function startSoloRun(difficulty, saboteurPreset) {
 
 function nextDoors() {
   const doors = runManager.generateDoors();
-  worldGame.loadRoom(doors);
+  worldGame.loadRoom(doors, pendingRoomTheme);
 }
 
 function onDoorChosen(doorId) {
   const door = runManager.currentDoors.find((d) => d.id === doorId);
+  pendingRoomTheme = door ? door.roomType.id : "lobby";
   if (door && runManager.isMinigameDoor(door)) {
     audio.sfx("doorOpen");
     if (door.roomType.id === "reactionGame") return startReactionMinigame(doorId);
@@ -273,6 +278,14 @@ document.addEventListener("DOMContentLoaded", () => {
   });
 
   el("#btn-settings").addEventListener("click", () => { audio.sfx("click"); openSettingsScreen(); });
+
+  el("#btn-locker").addEventListener("click", () => { audio.sfx("click"); openLockerScreen(); });
+  el("#btn-locker-equip").addEventListener("click", () => {
+    audio.sfx("unlockRare");
+    profile.equippedSkin = lockerSelectedSkin;
+    saveProfile(profile);
+    renderSkinBadge(profile.equippedSkin);
+  });
   el("#vol-music").addEventListener("input", (e) => {
     const v = Number(e.target.value) / 100;
     audio.setVolume("music", v);
@@ -302,7 +315,7 @@ document.addEventListener("DOMContentLoaded", () => {
     audio.sfx("click");
     setupSocketHandlers();
     ensureConnected()
-      .then(() => socket.send("createRoom", { name: "Du", skinId: getStarterSkin().id }))
+      .then(() => socket.send("createRoom", { name: "Du", skinId: (profile.equippedSkin ?? getStarterSkin().id) }))
       .catch(() => alert("Verbindung zum Server fehlgeschlagen. Server erreichbar?"));
   });
 
@@ -315,7 +328,7 @@ document.addEventListener("DOMContentLoaded", () => {
     if (!code) return;
     setupSocketHandlers();
     ensureConnected()
-      .then(() => socket.send("joinRoom", { code, name: "Du", skinId: getStarterSkin().id }))
+      .then(() => socket.send("joinRoom", { code, name: "Du", skinId: (profile.equippedSkin ?? getStarterSkin().id) }))
       .catch(() => alert("Verbindung zum Server fehlgeschlagen. Server erreichbar?"));
   });
 
@@ -336,7 +349,7 @@ document.addEventListener("DOMContentLoaded", () => {
     socket.send("startGame");
   });
 
-  renderSkinBadge(getStarterSkin().id);
+  renderSkinBadge((profile.equippedSkin ?? getStarterSkin().id));
   renderProfileSummary(profile);
   applySettingsToAudio();
   audio.playMood("menu");
@@ -357,6 +370,73 @@ function openSettingsScreen() {
   el("#vol-music").value = Math.round(profile.settings.musicVolume * 100);
   el("#vol-sfx").value = Math.round(profile.settings.sfxVolume * 100);
   el("#vol-vibration").checked = profile.settings.vibration;
+}
+
+// --- Spind ---
+let lockerAnimId = null;
+let lockerSelectedSkin = "mario";
+
+function openLockerScreen() {
+  showScreen("screen-locker");
+  lockerSelectedSkin = profile.equippedSkin ?? "mario";
+  renderLockerSkinList();
+  startLockerPreviewLoop();
+}
+
+function renderLockerSkinList() {
+  const box = el("#locker-skin-list");
+  box.innerHTML = "";
+  SKINS.forEach((skin) => {
+    const owned = profile.unlockedSkins.includes(skin.id);
+    const card = document.createElement("div");
+    card.className = `locker-skin-card ${skin.id === lockerSelectedSkin ? "locker-skin-card--selected" : ""} ${!owned ? "locker-skin-card--locked" : ""}`;
+    const palette = getSkinPalette(skin.id);
+    card.innerHTML = `<div class="locker-skin-card__swatch" style="background:${palette.body}"></div>${skin.name}<br><small>${RARITY[skin.rarity].label}</small>`;
+    if (owned) {
+      card.addEventListener("click", () => {
+        audio.sfx("click");
+        lockerSelectedSkin = skin.id;
+        renderLockerSkinList();
+      });
+    } else {
+      card.title = "Noch nicht freigeschaltet.";
+    }
+    box.appendChild(card);
+  });
+  const skin = getSkinById(lockerSelectedSkin);
+  const rarity = RARITY[skin.rarity];
+  const badge = el("#locker-rarity-badge");
+  badge.textContent = `${skin.name} · ${rarity.label}`;
+  badge.style.borderColor = rarity.color;
+  badge.style.color = rarity.color;
+  badge.style.boxShadow = rarity.glow ? `0 0 12px ${rarity.color}` : "none";
+}
+
+function startLockerPreviewLoop() {
+  const canvas = el("#locker-canvas");
+  const ctx = canvas.getContext("2d");
+  const resize = () => {
+    const dpr = window.devicePixelRatio || 1;
+    canvas.width = canvas.clientWidth * dpr;
+    canvas.height = canvas.clientHeight * dpr;
+    ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+  };
+  resize();
+  const start = performance.now();
+
+  function loop(t) {
+    if (el("#screen-locker").classList.contains("hidden")) { lockerAnimId = null; return; }
+    const elapsed = (t - start) / 1000;
+    ctx.clearRect(0, 0, canvas.clientWidth, canvas.clientHeight);
+    const palette = getSkinPalette(lockerSelectedSkin);
+    drawCharacter(ctx, {
+      x: canvas.clientWidth / 2, y: canvas.clientHeight * 0.8,
+      facing: "down", walkPhase: (elapsed * 0.15) % 1, palette, scale: 2.4,
+    });
+    lockerAnimId = requestAnimationFrame(loop);
+  }
+  if (lockerAnimId) cancelAnimationFrame(lockerAnimId);
+  lockerAnimId = requestAnimationFrame(loop);
 }
 
 // ===== Online-Multiplayer =====
@@ -436,7 +516,7 @@ function renderLobby(state) {
   el("#lobby-code").textContent = state.code;
   const box = el("#lobby-players");
   box.innerHTML = state.players
-    .map((p) => `<div class="lobby-player-row"><span>${p.isHost ? "👑 " : ""}${p.name}</span><span class="${p.ready ? "ready-dot" : "not-ready-dot"}">${p.ready ? "● bereit" : "○ wartet"}</span></div>`)
+    .map((p) => `<div class="lobby-player-row"><span>${p.name}${p.isHost ? " <em class=\"host-tag\">Host</em>" : ""}</span><span class="${p.ready ? "ready-dot" : "not-ready-dot"}">${p.ready ? "● bereit" : "○ wartet"}</span></div>`)
     .join("");
   el("#lobby-host-settings").classList.toggle("hidden", !iAmHost);
 }
@@ -447,7 +527,7 @@ function renderOnlinePlayers(players) {
       <div class="online-player-chip ${p.alive ? "" : "online-player-chip--dead"}">
         <div>${p.name}</div>
         <div class="op-hpbar"><div style="width:${p.hp}%"></div></div>
-        <div>${p.securedCoins}💰 +${p.riskCoins}</div>
+        <div>${p.securedCoins} Münzen<br><span class="risk-label">+${p.riskCoins} riskiert</span></div>
       </div>
     `).join("");
 }
@@ -458,7 +538,7 @@ function renderOnlineDoors(doors) {
   doors.forEach((door) => {
     const btn = document.createElement("button");
     btn.className = `door door--${door.shownHint}`;
-    btn.innerHTML = `<span class="door__icon">${door.shownHint === "danger" ? "⚠" : "✦"}</span><span class="door__label">Tür ${door.id + 1}</span>`;
+    btn.innerHTML = `<span class="door__icon"></span><span class="door__label">Tür ${door.id + 1}</span>`;
     btn.addEventListener("click", () => { audio.sfx("doorOpen"); socket.send("chooseDoor", { doorId: door.id }); });
     wrap.appendChild(btn);
   });
@@ -508,7 +588,7 @@ function renderOnlineEnd(state, reveal) {
   el("#end-summary").textContent = `Gemeinsam ${state.roomsCleared} Räume geschafft.`;
   const saboBox = el("#end-saboteur");
   if (reveal && reveal.hadSaboteur) {
-    saboBox.textContent = `🎭 Der Saboteur war ${reveal.botName}! Aufgabe „${reveal.task.label}" wurde ${reveal.success ? "ERFÜLLT" : "NICHT erfüllt"}.`;
+    saboBox.textContent = `Der Saboteur war ${reveal.botName}! Aufgabe „${reveal.task.label}" wurde ${reveal.success ? "ERFÜLLT" : "NICHT erfüllt"}.`;
     saboBox.classList.remove("hidden");
   } else {
     saboBox.classList.add("hidden");

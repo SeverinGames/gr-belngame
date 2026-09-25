@@ -6,6 +6,9 @@
   <title>NO WAY OUT</title>
   <link rel="manifest" href="manifest.json" />
   <meta name="theme-color" content="#0d0f16" />
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Sora:wght@400;600;700;800&display=swap" rel="stylesheet" />
   <link rel="stylesheet" href="css/style.css" />
 </head>
 <body>
@@ -18,10 +21,22 @@
       <div id="profile-summary" class="profile-summary"></div>
       <button id="btn-play" class="btn btn--primary">SOLO</button>
       <button id="btn-online" class="btn btn--primary">ONLINE</button>
+      <button id="btn-locker" class="btn btn--secondary">SPIND</button>
       <button id="btn-daily" class="btn btn--secondary">Tägliche Belohnung</button>
       <button id="btn-missions" class="btn btn--secondary">Missionen</button>
       <button id="btn-mysterybox" class="btn btn--secondary">Mystery Box öffnen</button>
       <button id="btn-settings" class="btn btn--secondary">Einstellungen</button>
+    </section>
+
+    <section id="screen-locker" class="screen hidden">
+      <h2>Spind</h2>
+      <div class="locker-preview">
+        <canvas id="locker-canvas"></canvas>
+        <div id="locker-rarity-badge" class="skin-badge"></div>
+      </div>
+      <div id="locker-skin-list" class="locker-skin-list"></div>
+      <button id="btn-locker-equip" class="btn btn--primary">AUSRÜSTEN</button>
+      <button class="btn btn--secondary" data-back="screen-menu">Zurück</button>
     </section>
 
     <section id="screen-online-choice" class="screen hidden">
@@ -188,10 +203,12 @@
 
   </div>
 
+  <footer class="site-footer">© Sevi 2026</footer>
+
   <!-- Global: über jedem Screen (Solo-Welt UND Online) einblendbar -->
   <div id="minigame-reaction" class="minigame-overlay minigame-overlay--global hidden">
     <div id="reaction-status" class="reaction-status">Bereit machen...</div>
-    <div id="reaction-symbol" class="reaction-symbol hidden">⚡</div>
+    <div id="reaction-symbol" class="reaction-symbol hidden">▲</div>
   </div>
 
   <script type="module" src="js/game/main.js"></script>
