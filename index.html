@@ -19,13 +19,39 @@
       <p class="tagline">Rein ins Ungewisse. Raus, solange es noch geht.</p>
       <div id="skin-badge" class="skin-badge"></div>
       <div id="profile-summary" class="profile-summary"></div>
+      <button id="btn-arcade" class="btn btn--arcade">🎮 MINISPIELE</button>
       <button id="btn-play" class="btn btn--primary">SOLO</button>
       <button id="btn-online" class="btn btn--primary">ONLINE</button>
-      <button id="btn-locker" class="btn btn--secondary">SPIND</button>
-      <button id="btn-daily" class="btn btn--secondary">Tägliche Belohnung</button>
-      <button id="btn-missions" class="btn btn--secondary">Missionen</button>
-      <button id="btn-mysterybox" class="btn btn--secondary">Mystery Box öffnen</button>
-      <button id="btn-settings" class="btn btn--secondary">Einstellungen</button>
+      <div class="menu-grid">
+        <button id="btn-locker" class="btn btn--secondary">🧢 SPIND</button>
+        <button id="btn-missions" class="btn btn--secondary">🎯 MISSIONEN</button>
+        <button id="btn-daily" class="btn btn--secondary">🎁 BELOHNUNG</button>
+        <button id="btn-mysterybox" class="btn btn--secondary">📦 BOX ÖFFNEN</button>
+      </div>
+      <button id="btn-settings" class="btn btn--ghost">⚙️ Einstellungen</button>
+    </section>
+
+    <section id="screen-arcade" class="screen hidden">
+      <h2>Minispiele</h2>
+      <p class="arcade-subtitle">Kurz, knackig, mit deinem Skin im Mittelpunkt.</p>
+      <div id="arcade-game-list" class="arcade-game-list"></div>
+      <button class="btn btn--secondary" data-back="screen-menu">Zurück</button>
+    </section>
+
+    <section id="screen-arcade-play" class="screen hidden">
+      <div class="arcade-topbar">
+        <button id="btn-arcade-quit" class="arcade-quit-btn">✕</button>
+        <div class="arcade-topbar__mid">
+          <div id="arcade-play-title" class="arcade-play-title"></div>
+          <div class="arcade-timerbar"><div id="arcade-timer-fill"></div></div>
+        </div>
+        <div class="arcade-topbar__stats">
+          <span id="arcade-score">0</span>
+          <span id="arcade-combo" class="arcade-combo hidden">x0</span>
+        </div>
+      </div>
+      <div id="arcade-stage" class="arcade-stage"></div>
+      <div id="arcade-result" class="arcade-result hidden"></div>
     </section>
 
     <section id="screen-locker" class="screen hidden">
@@ -209,6 +235,26 @@
   <div id="minigame-reaction" class="minigame-overlay minigame-overlay--global hidden">
     <div id="reaction-status" class="reaction-status">Bereit machen...</div>
     <div id="reaction-symbol" class="reaction-symbol hidden">▲</div>
+  </div>
+
+  <!-- Mystery-Box-Öffnungsanimation: über allem, komplett eigener Ablauf (Punkt 4) -->
+  <div id="mysterybox-animation" class="mb-overlay hidden">
+    <button id="mb-skip" class="mb-skip hidden">Überspringen ⏭</button>
+    <div class="mb-stage">
+      <div id="mb-box" class="mb-box">
+        <div class="mb-box__glow"></div>
+        <div class="mb-box__lid"></div>
+        <div class="mb-box__body">📦</div>
+      </div>
+      <div id="mb-burst" class="mb-burst hidden"></div>
+      <div id="mb-reveal" class="mb-reveal hidden">
+        <canvas id="mb-reveal-canvas" width="140" height="140"></canvas>
+        <div id="mb-reveal-name" class="mb-reveal-name"></div>
+        <div id="mb-reveal-rarity" class="mb-reveal-rarity"></div>
+        <div id="mb-reveal-extra" class="mb-reveal-extra"></div>
+        <button id="mb-continue" class="btn btn--primary mb-continue hidden">WEITER</button>
+      </div>
+    </div>
   </div>
 
   <script type="module" src="js/game/main.js"></script>

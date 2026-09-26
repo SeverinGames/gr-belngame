@@ -11,6 +11,8 @@ import { loadProfile, saveProfile, applyRunRewards } from "../rewards/profile.js
 import { canClaimDaily, claimDaily } from "../rewards/dailyReward.js";
 import { listMissionProgress, claimMission } from "../missions/missions.js";
 import { openMysteryBox } from "../rewards/mysteryBox.js";
+import { playBoxOpeningAnimation } from "../rewards/boxAnimation.js";
+import { createArcadeController } from "../arcade/controller.js";
 import { audio } from "../audio/audio.js";
 import { socket } from "../network/socketClient.js";
 import { SERVER_URL } from "../network/config.js";
@@ -29,6 +31,14 @@ let worldGame = null;
 let profile = loadProfile();
 let pendingDifficulty = "normal";
 let pendingRoomTheme = "lobby";
+
+const arcadeController = createArcadeController({
+  getProfile: () => profile,
+  saveProfile: (p) => saveProfile(p),
+  showScreen,
+  audio,
+  renderProfileSummary,
+});
 
 function startSoloRun(difficulty, saboteurPreset) {
   pendingRoomTheme = "lobby";
@@ -266,15 +276,18 @@ document.addEventListener("DOMContentLoaded", () => {
 
   el("#btn-missions").addEventListener("click", () => { audio.sfx("click"); openMissionsScreen(); });
 
+  el("#btn-arcade").addEventListener("click", () => { audio.sfx("click"); arcadeController.openHome(); });
+
   el("#btn-mysterybox").addEventListener("click", () => { audio.sfx("click"); openMysteryBoxScreen(); });
   el("#btn-mysterybox-open").addEventListener("click", () => {
     const result = openMysteryBox(profile, Math.random);
     saveProfile(profile);
-    if (result.success && result.isNew) audio.sfx("unlockRare");
-    else audio.sfx("secretFound");
-    renderMysteryBoxResult(result);
-    renderMysteryBoxStatus(profile);
-    renderProfileSummary(profile);
+    playBoxOpeningAnimation(result).then(() => {
+      renderMysteryBoxResult(result);
+      renderMysteryBoxStatus(profile);
+      renderProfileSummary(profile);
+      renderSkinBadge(profile.equippedSkin ?? "mario");
+    });
   });
 
   el("#btn-settings").addEventListener("click", () => { audio.sfx("click"); openSettingsScreen(); });

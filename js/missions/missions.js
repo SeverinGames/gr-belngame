@@ -7,6 +7,8 @@ export const MISSION_DEFS = [
   { id: "survive10", label: "Überlebe 10 Räume.", target: 10, statKey: "roomsCleared", reward: { coins: 40 } },
   { id: "collect500", label: "Sammle insgesamt 500 Münzen.", target: 500, statKey: "coinsEverEarned", reward: { keys: 1 } },
   { id: "flee2", label: "Entkomme 2-mal.", target: 2, statKey: "runsFled", reward: { keys: 1 } },
+  { id: "arcade10", label: "Spiele 10 Minispiel-Runden.", target: 10, statKey: "arcadeRoundsPlayed", reward: { coins: 60 } },
+  { id: "arcade30", label: "Spiele 30 Minispiel-Runden.", target: 30, statKey: "arcadeRoundsPlayed", reward: { keys: 1 } },
 ];
 
 // progress: { [missionId]: currentValue, claimed: { [missionId]: bool } }

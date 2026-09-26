@@ -72,6 +72,14 @@ class AudioEngine {
       case "levelUp": [392, 523, 659, 784].forEach((f, i) => this._tone(f, 0.3, "triangle", 0.3, i * 0.09)); break;
       case "unlockRare": [261, 329, 392, 523, 659].forEach((f, i) => this._tone(f, 0.35, "triangle", 0.3, i * 0.1)); break;
       case "secretFound": this._tone(880, 0.2, "sine", 0.2); this._tone(1046, 0.25, "sine", 0.2, 0.08); break;
+      case "pop": this._tone(700 + Math.random() * 200, 0.09, "sine", 0.22); break;
+      case "combo": [660, 880].forEach((f, i) => this._tone(f, 0.12, "triangle", 0.25, i * 0.05)); break;
+      case "swoosh": this._tone(180, 0.12, "sawtooth", 0.12); break;
+      case "cardFlip": this._tone(500, 0.06, "square", 0.12); break;
+      case "tick": this._tone(1000, 0.03, "square", 0.08); break;
+      case "wrong": this._tone(160, 0.18, "sawtooth", 0.2); break;
+      case "boxRumble": this._tone(80, 0.15, "sawtooth", 0.15); break;
+      case "boxBurst": [220, 440, 880, 1320].forEach((f, i) => this._tone(f, 0.35, "triangle", 0.3, i * 0.06)); this.vibrate([30, 20, 60]); break;
       default: this._tone(440, 0.1, "sine", 0.15);
     }
   }
