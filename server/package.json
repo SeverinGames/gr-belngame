@@ -2,7 +2,7 @@
   "name": "no-way-out-server",
   "version": "0.1.0",
   "type": "module",
-  "description": "Node.js + WebSocket Backend für NO WAY OUT (Lobby, Room-Codes, autoritative Spiellogik)",
+  "description": "Node.js + WebSocket Backend für Big Sevis Minispiel Party (Lobby, Room-Codes, autoritative Spiellogik)",
   "main": "index.js",
   "scripts": {
     "start": "node index.js"

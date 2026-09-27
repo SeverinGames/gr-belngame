@@ -1,9 +1,11 @@
 // server/index.js
+// WebSocket-Server für den Online-Modus von "Big Sevis Minispiel Party".
+// Seit der Umstellung gibt es kein Türen-Dungeon mehr - eine Online-Runde
+// bedeutet: alle Spieler in der Lobby spielen dasselbe Minispiel (gleicher
+// Seed) und werden danach anhand ihres Punktestands verglichen.
 import { createServer } from "http";
 import { WebSocketServer } from "ws";
-import { PartyRun } from "./partyRun.js";
-import { createReactionChallenge, scoreReaction, reactionOutcome } from "../js/minigames/reactionGame.js";
-import { createHideChallenge, resolveHideOutcome, hideOutcomeMessage } from "../js/minigames/hideGame.js";
+import { PartyMinigameRoom, ROUND_TIMEOUT_MS } from "./partyMinigame.js";
 
 const PORT = process.env.PORT || 3001;
 
@@ -19,9 +21,9 @@ const httpServer = createServer((req, res) => {
 
 const wss = new WebSocketServer({ server: httpServer });
 
-// rooms: Map<code, { code, hostId, clients: Map<playerId, ws>, players: Map<playerId,{name,skinId,ready}>,
-//                     settings, status: 'lobby'|'in-progress', run: PartyRun|null }>
+// rooms: Map<code, PartyMinigameRoom>
 const rooms = new Map();
+const socketsByRoom = new Map(); // code -> Map<playerId, ws>
 
 function makeRoomCode() {
   const chars = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789"; // ohne verwechselbare Zeichen
@@ -37,17 +39,9 @@ function send(ws, type, payload) {
 }
 
 function broadcast(room, type, payload) {
-  for (const ws of room.clients.values()) send(ws, type, payload);
-}
-
-function lobbyState(room) {
-  return {
-    code: room.code,
-    hostId: room.hostId,
-    settings: room.settings,
-    status: room.status,
-    players: [...room.players.entries()].map(([id, p]) => ({ id, ...p, isHost: id === room.hostId })),
-  };
+  const clients = socketsByRoom.get(room.code);
+  if (!clients) return;
+  for (const ws of clients.values()) send(ws, type, payload);
 }
 
 wss.on("connection", (ws) => {
@@ -64,11 +58,9 @@ wss.on("connection", (ws) => {
         case "createRoom": return handleCreateRoom(ws, payload);
         case "joinRoom": return handleJoinRoom(ws, payload);
         case "updateSettings": return handleUpdateSettings(ws, payload);
-        case "toggleReady": return handleToggleReady(ws, payload);
+        case "toggleReady": return handleToggleReady(ws);
         case "startGame": return handleStartGame(ws);
-        case "chooseDoor": return handleChooseDoor(ws, payload);
-        case "submitMinigameResult": return handleSubmitMinigameResult(ws, payload);
-        case "flee": return handleFlee(ws);
+        case "submitScore": return handleSubmitScore(ws, payload);
         case "leaveRoom": return handleLeave(ws);
         default: send(ws, "error", { message: `Unbekannter Nachrichtentyp: ${type}` });
       }
@@ -83,32 +75,25 @@ wss.on("connection", (ws) => {
 
 function handleCreateRoom(ws, { name, skinId }) {
   const code = makeRoomCode();
-  const room = {
-    code,
-    hostId: ws.playerId,
-    clients: new Map([[ws.playerId, ws]]),
-    players: new Map([[ws.playerId, { name: name || "Spieler", skinId: skinId || "mario", ready: false }]]),
-    settings: { difficulty: "normal", botCount: 2, saboteurPreset: "normal", seed: undefined },
-    status: "lobby",
-    run: null,
-    pendingMinigame: null,
-  };
+  const room = new PartyMinigameRoom(code, ws.playerId);
+  room.addPlayer(ws.playerId, { name, skinId });
   rooms.set(code, room);
+  socketsByRoom.set(code, new Map([[ws.playerId, ws]]));
   ws.roomCode = code;
-  send(ws, "roomCreated", { ...lobbyState(room), yourId: ws.playerId });
+  send(ws, "roomCreated", { ...room.lobbyState(), yourId: ws.playerId });
 }
 
 function handleJoinRoom(ws, { code, name, skinId }) {
   const room = rooms.get((code || "").toUpperCase());
   if (!room) return send(ws, "error", { message: "Raum nicht gefunden." });
   if (room.status !== "lobby") return send(ws, "error", { message: "Runde läuft bereits." });
-  if (room.players.size >= 6) return send(ws, "error", { message: "Lobby ist voll (max. 6 Spieler)." });
+  if (room.players.size >= 8) return send(ws, "error", { message: "Lobby ist voll (max. 8 Spieler)." });
 
-  room.clients.set(ws.playerId, ws);
-  room.players.set(ws.playerId, { name: name || "Spieler", skinId: skinId || "mario", ready: false });
+  room.addPlayer(ws.playerId, { name, skinId });
+  socketsByRoom.get(room.code).set(ws.playerId, ws);
   ws.roomCode = room.code;
-  send(ws, "joinedRoom", { ...lobbyState(room), yourId: ws.playerId });
-  broadcast(room, "lobbyUpdate", lobbyState(room));
+  send(ws, "joinedRoom", { ...room.lobbyState(), yourId: ws.playerId });
+  broadcast(room, "lobbyUpdate", room.lobbyState());
 }
 
 function requireRoom(ws) {
@@ -121,7 +106,7 @@ function handleUpdateSettings(ws, settings) {
   const room = requireRoom(ws);
   if (!room || ws.playerId !== room.hostId) return;
   room.settings = { ...room.settings, ...settings };
-  broadcast(room, "lobbyUpdate", lobbyState(room));
+  broadcast(room, "lobbyUpdate", room.lobbyState());
 }
 
 function handleToggleReady(ws) {
@@ -129,124 +114,55 @@ function handleToggleReady(ws) {
   if (!room) return;
   const p = room.players.get(ws.playerId);
   if (p) p.ready = !p.ready;
-  broadcast(room, "lobbyUpdate", lobbyState(room));
+  broadcast(room, "lobbyUpdate", room.lobbyState());
 }
 
 function handleStartGame(ws) {
   const room = requireRoom(ws);
-  if (!room || ws.playerId !== room.hostId) return;
-
-  const humanPlayers = [...room.players.entries()].map(([id, p]) => ({ id, name: p.name, skinId: p.skinId }));
-  room.run = new PartyRun({ ...room.settings, humanPlayers });
-  room.status = "in-progress";
-
-  const doors = room.run.generateDoors();
-  broadcast(room, "gameStarted", { state: room.run.toPublicState(), doors });
+  if (!room || ws.playerId !== room.hostId || room.status !== "lobby") return;
+  const { gameId, seed, players } = room.startRound();
+  broadcast(room, "roundStarted", { gameId, seed, players });
+  room.round.timeoutHandle = setTimeout(() => finalizeRoom(room), ROUND_TIMEOUT_MS);
 }
 
-function handleChooseDoor(ws, { doorId }) {
+function handleSubmitScore(ws, { score }) {
   const room = requireRoom(ws);
-  if (!room || !room.run || room.run.finished) return;
-
-  const door = room.run.currentDoors.find((d) => d.id === doorId);
-  if (!door) return;
-
-  if (door.roomType.id === "reactionGame") {
-    if (room.pendingMinigame) return; // läuft schon eins
-    const challenge = createReactionChallenge(() => room.run.rng.next(), room.run.dynamicDifficultyFactor);
-    room.pendingMinigame = { doorId, type: "reactionGame", challenge, resolved: false };
-    broadcast(room, "minigameStarted", { doorId, type: "reactionGame", challenge });
-    return;
-  }
-
-  if (door.roomType.id === "hideGame") {
-    // Multiplayer-Bewegung für das Versteckspiel folgt in einer späteren Phase.
-    // Platzhalter mit fairer, identischer Erfolgswahrscheinlichkeit: der Server
-    // "versteckt" die Gruppe automatisch an einem zufälligen von N Plätzen.
-    const challenge = createHideChallenge(() => room.run.rng.next(), room.run.dynamicDifficultyFactor);
-    const autoSpot = Math.floor(room.run.rng.next() * challenge.spotCount);
-    const result = resolveHideOutcome(autoSpot, challenge.spotCount, () => room.run.rng.next());
-    const outcome = hideOutcomeMessage(result, room.run.dynamicDifficultyFactor);
-    const { outcome: applied } = room.run.resolveMinigameDoor(doorId, outcome);
-    finishDoorResolution(room, applied);
-    return;
-  }
-
-  const { outcome, merchantOffer, secretFound } = room.run.chooseDoor(doorId);
-  const botReactions = room.run.getBotReactions(outcome.kind);
-  broadcast(room, "roomResolved", {
-    outcome, merchantOffer, secretFound, botReactions, state: room.run.toPublicState(),
-  });
-  finishDoorResolution(room, outcome, { alreadyBroadcastResolved: true });
+  if (!room || !room.round) return;
+  const allIn = room.submitScore(ws.playerId, score);
+  if (allIn) finalizeRoom(room);
 }
 
-function handleSubmitMinigameResult(ws, { doorId, reactionMs }) {
-  const room = requireRoom(ws);
-  if (!room || !room.pendingMinigame || room.pendingMinigame.doorId !== doorId || room.pendingMinigame.resolved) return;
-  room.pendingMinigame.resolved = true;
-
-  const result = scoreReaction(reactionMs, room.pendingMinigame.challenge.windowMs);
-  const outcome = reactionOutcome(result, room.run.dynamicDifficultyFactor);
-  const { outcome: applied } = room.run.resolveMinigameDoor(doorId, outcome);
-  room.pendingMinigame = null;
-
-  broadcast(room, "roomResolved", {
-    outcome: applied, merchantOffer: null, secretFound: false,
-    botReactions: room.run.getBotReactions(applied.kind), state: room.run.toPublicState(),
-  });
-  finishDoorResolution(room, applied, { alreadyBroadcastResolved: true });
-}
-
-// Gemeinsamer Abschluss nach jeder Art von Tür-Auflösung (Zufallsereignis,
-// Reaktionsspiel oder Versteckspiel-Platzhalter) - vermeidet doppelten Code.
-function finishDoorResolution(room, outcome, { alreadyBroadcastResolved = false } = {}) {
-  if (!alreadyBroadcastResolved) {
-    broadcast(room, "roomResolved", {
-      outcome, merchantOffer: null, secretFound: false,
-      botReactions: room.run.getBotReactions(outcome.kind), state: room.run.toPublicState(),
-    });
-  }
-
-  if (room.run.finished) {
-    const reveal = room.run.revealSaboteur();
-    broadcast(room, "gameEnded", { state: room.run.toPublicState(), reveal });
-    room.status = "lobby";
-    for (const p of room.players.values()) p.ready = false;
-    return;
-  }
-
-  const exitAvailable = room.run.exitAvailable();
-  const doors = room.run.generateDoors();
-  const botSuggestions = room.run.getBotDoorSuggestions(doors);
-  broadcast(room, "nextDoors", { doors, exitAvailable, botSuggestions });
-}
-
-function handleFlee(ws) {
-  const room = requireRoom(ws);
-  if (!room || !room.run || room.run.finished) return;
-  room.run.flee();
-  const reveal = room.run.revealSaboteur();
-  broadcast(room, "gameEnded", { state: room.run.toPublicState(), reveal });
-  room.status = "lobby";
-  for (const p of room.players.values()) p.ready = false;
+function finalizeRoom(room) {
+  if (!room.round) return;
+  clearTimeout(room.round.timeoutHandle);
+  const results = room.finishRound();
+  broadcast(room, "roundResults", { results });
 }
 
 function handleLeave(ws) {
   const room = rooms.get(ws.roomCode);
   if (!room) return;
-  room.clients.delete(ws.playerId);
-  room.players.delete(ws.playerId);
+  socketsByRoom.get(room.code)?.delete(ws.playerId);
+  room.removePlayer(ws.playerId);
 
   if (room.players.size === 0) {
+    if (room.round) clearTimeout(room.round.timeoutHandle);
     rooms.delete(room.code);
+    socketsByRoom.delete(room.code);
     return;
   }
   if (ws.playerId === room.hostId) {
     room.hostId = [...room.players.keys()][0]; // Host-Übergabe an nächsten Spieler
   }
-  broadcast(room, "lobbyUpdate", lobbyState(room));
+  // Falls mitten in einer laufenden Runde jemand geht, kann das die
+  // Restlichen zum Abschluss bringen (alle verbleibenden haben abgegeben).
+  if (room.round && room.round.scores.size >= room.players.size) {
+    finalizeRoom(room);
+  } else {
+    broadcast(room, "lobbyUpdate", room.lobbyState());
+  }
 }
 
 httpServer.listen(PORT, () => {
-  console.log(`NO WAY OUT Server läuft auf Port ${PORT}`);
+  console.log(`Big Sevis Minispiel Party Server läuft auf Port ${PORT}`);
 });

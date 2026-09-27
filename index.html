@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
-  <title>NO WAY OUT</title>
+  <title>Big Sevis Minispiel Party</title>
   <link rel="manifest" href="manifest.json" />
   <meta name="theme-color" content="#0d0f16" />
   <link rel="preconnect" href="https://fonts.googleapis.com" />
@@ -15,27 +15,39 @@
   <div id="app">
 
     <section id="screen-menu" class="screen">
-      <div class="logo">NO WAY<span>?</span></div>
-      <p class="tagline">Rein ins Ungewisse. Raus, solange es noch geht.</p>
+      <div class="logo logo--party">BIG SEVIS<span class="logo__sub">MINISPIEL PARTY</span></div>
+      <p class="tagline">Willkommen in der Big Sevis Minispiel Party – welches Spiel wagst du?</p>
       <div id="skin-badge" class="skin-badge"></div>
       <div id="profile-summary" class="profile-summary"></div>
-      <button id="btn-arcade" class="btn btn--arcade">🎮 MINISPIELE</button>
-      <button id="btn-play" class="btn btn--primary">SOLO</button>
-      <button id="btn-online" class="btn btn--primary">ONLINE</button>
+      <button id="btn-play" class="btn btn--arcade">🎮 SOLO</button>
+      <button id="btn-online" class="btn btn--primary">🌐 ONLINE</button>
       <div class="menu-grid">
-        <button id="btn-locker" class="btn btn--secondary">🧢 SPIND</button>
+        <button id="btn-shop" class="btn btn--secondary">🛒 SHOP</button>
+        <button id="btn-locker" class="btn btn--secondary">👤 SPIND</button>
         <button id="btn-missions" class="btn btn--secondary">🎯 MISSIONEN</button>
         <button id="btn-daily" class="btn btn--secondary">🎁 BELOHNUNG</button>
-        <button id="btn-mysterybox" class="btn btn--secondary">📦 BOX ÖFFNEN</button>
       </div>
       <button id="btn-settings" class="btn btn--ghost">⚙️ Einstellungen</button>
     </section>
 
+    <!-- SOLO: Minispiel wählen -> Schwierigkeit -> Start (kein Türen-System mehr) -->
     <section id="screen-arcade" class="screen hidden">
-      <h2>Minispiele</h2>
+      <h2>Solo · Minispiel wählen</h2>
       <p class="arcade-subtitle">Kurz, knackig, mit deinem Skin im Mittelpunkt.</p>
       <div id="arcade-game-list" class="arcade-game-list"></div>
       <button class="btn btn--secondary" data-back="screen-menu">Zurück</button>
+    </section>
+
+    <section id="screen-arcade-difficulty" class="screen hidden">
+      <h2>Schwierigkeit wählen</h2>
+      <p id="arcade-difficulty-gamename" class="arcade-subtitle"></p>
+      <div class="difficulty-grid">
+        <button class="btn btn--secondary" data-arcade-difficulty="easy">😌 Leicht</button>
+        <button class="btn btn--secondary" data-arcade-difficulty="normal">🙂 Normal</button>
+        <button class="btn btn--secondary" data-arcade-difficulty="hard">🔥 Schwer</button>
+      </div>
+      <p class="arcade-difficulty-hint">Schwer verlangt mehr Leistung für die volle Belohnungsstufe, gibt dafür spürbar mehr Münzen &amp; XP.</p>
+      <button class="btn btn--secondary" data-back="screen-arcade">Zurück</button>
     </section>
 
     <section id="screen-arcade-play" class="screen hidden">
@@ -52,6 +64,14 @@
       </div>
       <div id="arcade-stage" class="arcade-stage"></div>
       <div id="arcade-result" class="arcade-result hidden"></div>
+    </section>
+
+    <!-- SHOP: Münzen gegen Boxen tauschen (ersetzt das alte Schlüssel-System) -->
+    <section id="screen-shop" class="screen hidden">
+      <h2>Shop</h2>
+      <div id="shop-coins" class="shop-coins">0 🪙</div>
+      <div id="shop-box-list" class="shop-box-list"></div>
+      <button class="btn btn--secondary" data-back="screen-menu">Zurück</button>
     </section>
 
     <section id="screen-locker" class="screen hidden">
@@ -84,33 +104,8 @@
       <h2>Lobby <span id="lobby-code" class="lobby-code"></span></h2>
       <div id="lobby-players" class="lobby-players"></div>
       <div id="lobby-host-settings" class="lobby-host-settings hidden">
-        <label>Schwierigkeit
-          <select id="lobby-difficulty">
-            <option value="easy">Easy</option>
-            <option value="normal" selected>Normal</option>
-            <option value="hard">Hard</option>
-            <option value="chaos">Chaos</option>
-            <option value="nightmare">Nightmare</option>
-          </select>
-        </label>
-        <label>Bots
-          <select id="lobby-bots">
-            <option value="0">0</option>
-            <option value="1">1</option>
-            <option value="2" selected>2</option>
-            <option value="3">3</option>
-            <option value="4">4</option>
-            <option value="5">5</option>
-          </select>
-        </label>
-        <label>Saboteur
-          <select id="lobby-saboteur">
-            <option value="peaceful">Friedlich</option>
-            <option value="normal" selected>Normal</option>
-            <option value="chaos">Chaos</option>
-            <option value="extreme">Extrem</option>
-            <option value="allOrNothing">Alles oder Nichts</option>
-          </select>
+        <label>Minispiel
+          <select id="lobby-game"></select>
         </label>
         <button id="btn-lobby-start" class="btn btn--primary">Runde starten</button>
       </div>
@@ -118,12 +113,33 @@
       <button id="btn-lobby-leave" class="btn btn--secondary">Verlassen</button>
     </section>
 
+    <!-- ONLINE-Runde: alle Spieler bekommen dasselbe Minispiel, Ergebnisse
+         werden danach als Rangliste verglichen (kein Türen-System mehr) -->
     <section id="screen-online-game" class="screen hidden">
-      <div id="online-players-hud" class="online-players-hud"></div>
-      <div id="online-outcome" class="outcome outcome--hidden"></div>
-      <div id="online-doors" class="doors"></div>
-      <div id="online-bot-feed" class="bot-feed"></div>
-      <div id="online-decision" class="decision hidden"></div>
+      <div class="arcade-topbar">
+        <div class="arcade-topbar__mid">
+          <div id="online-play-title" class="arcade-play-title"></div>
+          <div class="arcade-timerbar"><div id="online-timer-fill"></div></div>
+        </div>
+        <div class="arcade-topbar__stats">
+          <span id="online-score">0</span>
+          <span id="online-combo" class="arcade-combo hidden">x0</span>
+        </div>
+      </div>
+      <div id="online-stage" class="arcade-stage"></div>
+      <div id="online-waiting" class="arcade-result hidden">
+        <div class="arcade-result__card">
+          <div class="arcade-result__tier arcade-result__tier--normal">Runde beendet!</div>
+          <div id="online-waiting-score" class="arcade-result__score"></div>
+          <p class="arcade-subtitle">Warte auf die anderen Spieler …</p>
+        </div>
+      </div>
+    </section>
+
+    <section id="screen-online-result" class="screen hidden">
+      <h2>🏆 Online-Runde</h2>
+      <div id="online-leaderboard" class="online-leaderboard"></div>
+      <div id="online-result-actions" class="online-result-actions"></div>
     </section>
 
     <section id="screen-settings" class="screen hidden">
@@ -156,88 +172,11 @@
       <button class="btn btn--secondary" data-back="screen-menu">Zurück</button>
     </section>
 
-    <section id="screen-mysterybox" class="screen hidden">
-      <h2>Mystery Box</h2>
-      <p id="mysterybox-status"></p>
-      <button id="btn-mysterybox-open" class="btn btn--primary">Öffnen (1 Schlüssel)</button>
-      <div id="mysterybox-result"></div>
-      <button class="btn btn--secondary" data-back="screen-menu">Zurück</button>
-    </section>
-
-    <section id="screen-difficulty" class="screen hidden">
-      <h2>Schwierigkeit wählen</h2>
-      <div class="difficulty-grid">
-        <button class="btn btn--secondary" data-difficulty="easy">Easy</button>
-        <button class="btn btn--secondary" data-difficulty="normal">Normal</button>
-        <button class="btn btn--secondary" data-difficulty="hard">Hard</button>
-        <button class="btn btn--secondary" data-difficulty="chaos">Chaos</button>
-        <button class="btn btn--secondary" data-difficulty="nightmare">Nightmare</button>
-      </div>
-    </section>
-
-    <section id="screen-saboteur" class="screen hidden">
-      <h2>Saboteur-Wahrscheinlichkeit</h2>
-      <div class="difficulty-grid">
-        <button class="btn btn--secondary" data-saboteur="peaceful">Friedlich (0%)</button>
-        <button class="btn btn--secondary" data-saboteur="normal">Normal (~20%)</button>
-        <button class="btn btn--secondary" data-saboteur="chaos">Chaos (~35%)</button>
-        <button class="btn btn--secondary" data-saboteur="extreme">Extrem (~50%)</button>
-        <button class="btn btn--secondary" data-saboteur="allOrNothing">Alles oder Nichts</button>
-      </div>
-    </section>
-
-    <section id="screen-game" class="screen hidden">
-      <div class="hud">
-        <div>
-          HP
-          <div class="hud-hpbar"><div id="hud-hp" style="width:100%"></div></div>
-          <span id="hud-hp-label">100 HP</span>
-        </div>
-        <div>Gesichert<br /><strong id="hud-secured">0</strong></div>
-        <div>Riskiert<br /><strong id="hud-risk">0</strong></div>
-        <div>Räume<br /><strong id="hud-rooms">0</strong></div>
-      </div>
-
-      <div id="inventory-bar" class="inventory-bar"></div>
-
-      <div id="bot-roster" class="bot-roster"></div>
-
-      <div class="world-viewport">
-        <canvas id="world-canvas"></canvas>
-        <div id="mobile-joystick" class="joystick">
-          <div class="joystick-knob"></div>
-        </div>
-        <button id="mobile-interact" class="interact-btn">ÖFFNEN</button>
-
-        <div id="minigame-hide" class="minigame-overlay hidden">
-          <div class="hide-timer-bar"><div id="hide-timer-fill"></div></div>
-          <div class="hide-hint">Lauf zu einem Versteck und drück E!</div>
-        </div>
-      </div>
-
-      <div id="outcome" class="outcome outcome--hidden"></div>
-      <div id="bot-feed" class="bot-feed"></div>
-      <div id="decision" class="decision hidden"></div>
-    </section>
-
-    <section id="screen-end" class="screen hidden">
-      <h1 id="end-title" class="end-title"></h1>
-      <p id="end-summary"></p>
-      <p id="end-saboteur" class="end-saboteur hidden"></p>
-      <button id="btn-play-again" class="btn btn--primary">Zurück zum Menü</button>
-    </section>
-
   </div>
 
   <footer class="site-footer">© Sevi 2026</footer>
 
-  <!-- Global: über jedem Screen (Solo-Welt UND Online) einblendbar -->
-  <div id="minigame-reaction" class="minigame-overlay minigame-overlay--global hidden">
-    <div id="reaction-status" class="reaction-status">Bereit machen...</div>
-    <div id="reaction-symbol" class="reaction-symbol hidden">▲</div>
-  </div>
-
-  <!-- Mystery-Box-Öffnungsanimation: über allem, komplett eigener Ablauf (Punkt 4) -->
+  <!-- Box-Öffnungsanimation: über allem, komplett eigener Ablauf -->
   <div id="mysterybox-animation" class="mb-overlay hidden">
     <button id="mb-skip" class="mb-skip hidden">Überspringen ⏭</button>
     <div class="mb-stage">

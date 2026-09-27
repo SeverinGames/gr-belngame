@@ -1,7 +1,7 @@
 {
-  "name": "NO WAY OUT",
-  "short_name": "NoWayOut",
-  "description": "Rein ins Ungewisse. Raus, solange es noch geht.",
+  "name": "Big Sevis Minispiel Party",
+  "short_name": "BigSevis",
+  "description": "Willkommen in der Big Sevis Minispiel Party – welches Spiel wagst du?",
   "start_url": "./index.html",
   "display": "standalone",
   "orientation": "any",

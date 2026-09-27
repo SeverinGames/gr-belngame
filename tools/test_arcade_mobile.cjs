@@ -15,13 +15,15 @@ const { chromium } = require('playwright');
   console.log('Kein horizontales Scrollen (Mobile):', noHScroll);
   if (!noHScroll) errors.push('Horizontales Scrollen auf Mobile vorhanden');
 
-  await page.click('#btn-arcade');
+  await page.click('#btn-play');
   await page.waitForTimeout(150);
   const noHScrollArcadeHome = await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth + 1);
   if (!noHScrollArcadeHome) errors.push('Horizontales Scrollen im Minispiel-Menü (Mobile)');
 
   // --- Obstkorb: per Touch bewegen + prüfen, dass mind. eine Frucht erscheint ---
   await page.locator('.arcade-card').filter({ hasText: 'Obstkorb' }).click();
+  await page.waitForTimeout(150);
+  await page.click('[data-arcade-difficulty="normal"]');
   await page.waitForTimeout(1200);
   const fruitCount = await page.locator('.fc-fruit').count();
   console.log('Obstkorb: sichtbare Früchte nach 1.2s:', fruitCount);
@@ -38,6 +40,8 @@ const { chromium } = require('playwright');
 
   // --- Balloon Pop: einen Ballon per Tap poppen ---
   await page.locator('.arcade-card').filter({ hasText: 'Balloon Pop' }).click();
+  await page.waitForTimeout(150);
+  await page.click('[data-arcade-difficulty="normal"]');
   await page.waitForTimeout(1000);
   const balloon = page.locator('.bp-balloon').first();
   if (await balloon.count() > 0) {
@@ -53,6 +57,8 @@ const { chromium } = require('playwright');
 
   // --- Star Catcher: einen Stern antippen ---
   await page.locator('.arcade-card').filter({ hasText: 'Star Catcher' }).click();
+  await page.waitForTimeout(150);
+  await page.click('[data-arcade-difficulty="normal"]');
   await page.waitForTimeout(400);
   const star = page.locator('.sc-star').first();
   if (await star.count() > 0) {
@@ -67,6 +73,8 @@ const { chromium } = require('playwright');
 
   // --- Stopp bei Grün: Stopp-Button einmal drücken ---
   await page.locator('.arcade-card').filter({ hasText: 'Stopp bei Grün' }).click();
+  await page.waitForTimeout(150);
+  await page.click('[data-arcade-difficulty="normal"]');
   await page.waitForTimeout(500);
   await page.click('.sg-stopbtn');
   await page.waitForTimeout(300);

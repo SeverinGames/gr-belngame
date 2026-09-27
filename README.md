@@ -1,13 +1,9 @@
-# NO WAY OUT — Entwicklungsstand
+# Big Sevis Minispiel Party — Entwicklungsstand
 
-## Phase 1 (fertig, getestet)
-- Solo-Modus mit prozeduraler Raum-/Tür-Generierung
-- Mehrschichtiges Zufallssystem: Seed, gewichtete Pools, Anti-Repetition, dynamische Schwierigkeit, Glücks-Ausgleich
-- Risiko/Belohnung-Loop: gesicherte vs. riskierte Münzen, Fliehen-oder-Weiter-Entscheidung
-- 19 Raumtypen als Daten definiert (js/rooms/roomTypes.js)
-- Skin-Datenmodell mit allen 8 Skins + Rarity-System + Mario-Starter (js/skins/skins.js)
-- Mobile-first UI, große Touch-Buttons
-- Balancing-Testskript: `node tools/simulate.mjs` (simuliert 1000 Runden, prüft Raumtyp-Verteilung)
+Browser-Minispielsammlung. Das frühere Türen-Dungeon-System (prozedurale
+Räume, HP, Risiko/Belohnung, Bots, Saboteur) wurde komplett entfernt und
+durch acht eigenständige Minispiele ersetzt, die sowohl SOLO als auch ONLINE
+gespielt werden.
 
 ## Lokal testen
 Da ES-Module verwendet werden, per lokalem Server öffnen (nicht per file://):
@@ -18,81 +14,38 @@ python3 -m http.server 8000
 ```
 Dann im Browser: http://localhost:8000 (bzw. der von serve angezeigte Port)
 
-## Phase 2 (fertig, getestet)
-- Mehr Fallen-/Gegner-Varianten mit unterschiedlichem Risiko/Ertrag
-- Händlerraum: echte Kauf-Interaktion (Münzen gegen Heilung)
-- Geheimraum-Suchmechanik nach jedem Raum (Fund-Chance abhängig vom Glücks-Ausgleich)
+## Spielstruktur
+- **SOLO**: Minispiel wählen → Schwierigkeit (Leicht/Normal/Schwer, wirkt nur
+  auf die Belohnung, nicht auf die Spiellogik) → Runde spielen → Belohnung.
+- **ONLINE**: Lobby per Room-Code erstellen/beitreten, Host wählt ein
+  Minispiel, alle Spieler bekommen denselben Zufalls-Seed und spielen
+  gleichzeitig lokal, danach Rangliste nach Punktestand (`server/`,
+  WebSocket, autoritativ für Rundenabschluss).
+- **SHOP**: Münzen aus Minispielen/Missionen/Daily-Streak gegen drei
+  Box-Stufen eintauschen (Basic/Super/Mega, `js/shop/shop.js`) - ersetzt das
+  alte Schlüssel-System vollständig.
+- **SPIND**: freigeschaltete Skins verwalten und ausrüsten, wird in jedem
+  Minispiel als echte Spielfigur verwendet (`js/world/characterSprite.js`).
+- **MISSIONEN** und **tägliche Belohnung**: unverändert im Prinzip, geben
+  jetzt ausschließlich Münzen.
 
-## Phase 3 (fertig, getestet)
-- Persistentes Profil via LocalStorage (Level, XP, Bank-Münzen, Schlüssel, freigeschaltete Skins)
-- Mystery-Box mit transparenter, seltenheitsbasierter Drop-Tabelle (js/rewards/mysteryBox.js)
-- Tägliches Belohnungssystem mit 7-Tage-Streak (js/rewards/dailyReward.js)
-- Missionssystem mit 4 Startmissionen, Fortschritt aus Profil-Statistiken (js/missions/missions.js)
-- Testabdeckung: `node tools/test_progression.mjs` (15 automatisierte Checks, inkl. 500x Box öffnen als Crashtest)
+## Minispiele (`js/arcade/games/`)
+Obstkorb, Balloon Pop, Color Trick, Mini Memory, Reaktion, Star Catcher,
+Stopp bei Grün, Schnellster Finger. Gemeinsames Interface:
+`start({ container, skinId, rng, onHud, onEnd }) -> { destroy() }`.
 
-## Phase 4 (fertig, getestet)
-- 6 Bot-Persönlichkeiten (Mutig/Vorsichtig/Gierig/Dumm/Helfer/Verdächtig) mit eigener Tür-Bewertung, Fluchtneigung und Kommentaren
-- Solo-Runs starten automatisch mit 2 Bots als Begleitung, sichtbar im UI (Bot-Chips, Türempfehlungen, Kommentar-Feed)
-- Testabdeckung: `node tools/test_bots.mjs` (inkl. 200 volle Runs mit 5 Bots als Crashtest)
+## Deployment auf Render (Online-Server)
+1. GitHub-Repo mit diesem gesamten Projektordner anlegen
+2. In Render: "New Web Service" → GitHub-Repo verbinden → Root-Verzeichnis
+   `server` → Build-Command `npm install` → Start-Command `npm start`
+3. Nach dem Deploy zeigt Render eine URL wie
+   `https://big-sevis-server-xyz.onrender.com` - diese in
+   `js/network/config.js` als `wss://...` (statt `https://`) eintragen
+4. Client (der restliche Ordner außerhalb von `/server`) kann z.B. über
+   GitHub Pages gehostet werden
 
-## Phase 6 (fertig, getestet)
-- Saboteur-Mechanik: heimliche Zuweisung an einen Bot, 3 geheime Aufgabentypen, 5 Wahrscheinlichkeits-Presets (Friedlich/Normal/Chaos/Extrem/Alles-oder-Nichts)
-- Saboteur bewertet Türen anders (bevorzugt Gefahr), tarnt sich aber nach außen
-- Reveal-Screen am Rundenende zeigt, wer der Saboteur war und ob die Aufgabe gelang
-- Testabdeckung: `node tools/test_saboteur.mjs` (8 Checks, inkl. 100 volle Runs als Crashtest)
-- **Hinweis:** Saboteur kann in Solo-Runs aktuell nur ein Bot sein, nicht der menschliche Spieler selbst - echte Multiplayer-Zuweisung (auch an echte Mitspieler) folgt mit Phase 5/Online-Ausbau
-
-## Phase 5: Online-Multiplayer (fertig, real getestet)
-- Node.js + WebSocket-Server (`/server`) mit Lobby-System, Room-Codes, Host-Rechten, Host-Übergabe beim Verlassen
-- Serverseitig autoritative Spiellogik (Punkt 74): derselbe Code wie im Solo-Client (RandomEngine, Events, Bots, Saboteur), aber für mehrere menschliche Mitspieler gemeinsam - alle erleben dieselben Türen/Ereignisse, ein Klick löst für die ganze Gruppe auf
-- Client: Online-Menü, Lobby-Screen (Spielerliste, Bereit-Status, Host-Einstellungen), synchronisierter Spielscreen
-- **Getestet mit einem echten laufenden Server + echten WebSocket-Verbindungen** (nicht nur simuliert): `node tools/test_server_integration.mjs` (15 Checks: Lobby erstellen/beitreten, falscher Code, Host-exklusive Einstellungen, synchronisierter Spielstart, identische Ergebnisse bei allen Clients, vollständige Runde bis Ende, Host-Übergabe)
-- **Zusätzlich mit zwei echten Browser-Tabs verifiziert** (nicht nur Node-Client): `node tools/browser_test_multiplayer.cjs` (9 Checks, kompletter Ablauf von Lobby-Erstellung bis gemeinsamem Rundenende)
-- **Bekannte Vereinfachung für v1:** Wer zuerst klickt, entscheidet die Tür für die ganze Gruppe (kein Abstimmungssystem); Saboteur kann aktuell nur ein Bot sein, nicht ein echter Mitspieler; keine automatische Wiederverbindung bei Verbindungsabbruch
-
-## Deployment auf Render
-1. GitHub-Repo mit diesem gesamten Projektordner anlegen (siehe unten)
-2. In Render: "New Web Service" → GitHub-Repo verbinden → Root-Verzeichnis `server` → Build-Command `npm install` → Start-Command `npm start`
-3. Nach dem Deploy zeigt Render eine URL wie `https://no-way-out-server-xyz.onrender.com` - diese in `js/network/config.js` als `wss://...` (statt `https://`) eintragen
-4. Client (den restlichen Ordner außerhalb von `/server`) kann z.B. über GitHub Pages, Render Static Site oder einen zweiten Render-Service gehostet werden
-
-## Noch offen
-- Phase 8 (falls gewünscht): Saboteur-Rolle auch für echte Mitspieler statt nur Bots
-- Mehr Politur: Abstimmungssystem statt "wer zuerst klickt", automatische Wiederverbindung, echte Skin-Bilder statt Platzhalter
-
-## Phase 7 (Grundgerüst fertig, statisch geprüft – finale Browser-Verifikation steht noch aus)
-- Prozedurale Sound-Engine (Web Audio API, keine externen Audiodateien nötig - siehe Punkt 31): Klick-, Tür-, Belohnungs-, Schadens-, Flucht-, Tod-, Level-Up- und Unlock-Sounds
-- Musikstimmungen (Menü/Normal/Gefahr) als einfache Loop-Drones, wechseln automatisch mit dem Spielgeschehen
-- Einstellungen-Screen: Musik-/SFX-Lautstärke, Vibration - wird im Profil gespeichert
-- Landscape-Layout-Anpassung (eigenes Grid, nicht nur gedrehtes Hochformat)
-- PWA-Manifest + generierte Icons ("Zum Home-Bildschirm hinzufügen")
-- **Bekannte Einschränkung:** Die Audio/Settings-Integration wurde nur statisch geprüft (alle DOM-IDs abgeglichen, Syntax sauber), nicht mehr live im Browser durchgeklickt, weil die Sandbox hier gerade keine Chromium-Testläufe zulässt. Bitte beim eigenen Testen besonders auf Ton/Lautstärkeregler achten.
-
-## NEXUS-Rebuild: Phase 1 (Bewegungswelt) – fertig, echt im Browser getestet
-- Neue Bewegungs-Engine (`js/world/`): Canvas-basierte 2D-Welt statt Buttons
-- Spieler bewegt sich frei mit WASD/Pfeiltasten (PC) oder virtuellem Joystick (Mobile), Kollision gegen Wände
-- Türen sind jetzt echte, sichtbare Objekte im Raum (Holz-/Metalltür je nach Hinweis) - Spieler läuft hin und drückt E (bzw. tippt ÖFFNEN), keine "Tür 1/Tür 2"-Buttons mehr
-- Kamera folgt dem Spieler, an Raumgrenzen geklemmt
-- Stilisierte Spielfiguren (kein Foto - siehe Datenschutz-Hinweis) mit Lauf-/Idle-Animation, individuelles Farbschema pro Skin
-- Komplett wiederverwendete, bereits getestete Spiellogik dahinter (RandomEngine, Events, Bots, Saboteur) - nur die Präsentationsschicht wurde ausgetauscht, kein Logik-Rewrite nötig
-- **Getestet mit echtem Chromium**: `node tools/browser_test_world.cjs` (5 Checks: Bewegung sichtbar, Kollision, Interaktions-Prompt, Tür-Öffnen per Taste ändert HUD)
-
-## Mystery-Box-Wahrscheinlichkeiten korrigiert und verifiziert
-- Bug gefunden: Löndi (Mission-Skin) tauchte fälschlich auch im Box-Pool auf und verzerrte die Legendär-Chance
-- Neue Gewichte eingetragen (Superselten 55% → Unlimited 0,13%, strikt absteigend)
-- Mit 100.000 simulierten Ziehungen verifiziert: angezeigte Prozente stimmen exakt mit tatsächlicher Häufigkeit überein (keine Fake-Chancen)
-
-## Skin-Bilder
-7 von 8 Fotos eindeutig per Dateiname zugeordnet, IMG_4155.PNG = Mayo (bestätigt). Da es echte, teils jugendlich wirkende Gesichter sind, werden sie nur als Stilvorlage für eigene illustrierte Charaktere verwendet, nicht selbst als Bild ins Spiel geladen (Datenschutz bei öffentlicher Deploy-URL).
-
-## Noch offen (riesiger Rest-Scope aus dem NEXUS-Prompt)
-- Charaktere optisch näher an die Fotos anpassen (Haarfarbe/-stil, Cap, Brille pro Person)
-- Mehrere unterscheidbare Minispiele (aktuell: Tür-Ereignisse reichen bis Textresultat, noch keine eigenen Mini-Spielmechaniken wie Verstecken/Laser/Boden)
-- Weitere Maps (aktuell nur 1 generischer Raum-Typ, kein "Hotel" mit Lobby/Flur/Zimmer/Keller)
-- Spind als begehbarer Bereich, Mystery-Box als physisches Objekt in der Welt
-- Bewegung im Online-Multiplayer synchronisieren (aktuell nutzt Online-Modus noch die alte Button-Ansicht)
-- Einmalige Schwierigkeitsauswahl ohne Saboteur-Unterauswahl im selben Schritt (aktuell zwei Schritte hintereinander, technisch aber schon getrennte Parameter)
-
-## Skin-Artwork
-Skins sind aktuell nur als Daten definiert (Name, Rarity, Platzhalter-Asset).
-Sobald du Bilder schickst, werden sie eingebunden.
+## Bekannte Vereinfachungen
+- Online-Runden haben ein serverseitiges Zeitlimit (90s) als Sicherheitsnetz,
+  falls jemand die Verbindung verliert - fehlende Spieler zählen dann mit 0
+  Punkten.
+- Keine automatische Wiederverbindung bei Verbindungsabbruch.

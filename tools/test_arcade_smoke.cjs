@@ -7,94 +7,130 @@ const { chromium } = require('playwright');
   page.on('pageerror', (e) => errors.push('PAGEERROR: ' + e.message));
   page.on('console', (m) => { if (m.type() === 'error') errors.push('CONSOLE: ' + m.text()); });
 
-  // Vorab ein paar Mystery-Box-Schlüssel setzen, damit wir die Box-Animation testen können.
+  // Genug Münzen vorab setzen, damit wir eine Box im Shop kaufen können.
   await page.addInitScript(() => {
-    localStorage.setItem('nwo_profile_v1', JSON.stringify({ keys: 3 }));
+    localStorage.setItem('nwo_profile_v1', JSON.stringify({ coins: 5000 }));
   });
 
   await page.goto('http://localhost:8123/index.html', { timeout: 8000 });
   await page.waitForTimeout(300);
 
-  // --- 1) Alle 8 Minispiele: öffnen, kurz laufen lassen, wieder verlassen ---
-  await page.click('#btn-arcade');
+  // --- 0) Branding ---
+  const logoText = await page.locator('.logo--party').textContent();
+  console.log('Logo-Text:', JSON.stringify(logoText));
+  if (!logoText.includes('BIG SEVIS') || !logoText.includes('MINISPIEL PARTY')) {
+    errors.push('Logo zeigt nicht "BIG SEVIS MINISPIEL PARTY"');
+  }
+  const tagline = await page.locator('.tagline').textContent();
+  console.log('Tagline:', tagline);
+  if (!tagline.includes('Big Sevis Minispiel Party')) errors.push('Tagline erwähnt den neuen Namen nicht');
+  if (tagline.includes('Rein ins Ungewisse')) errors.push('Alter Begrüßungssatz ist noch da');
+  const pageTitle = await page.title();
+  console.log('Browser-Titel:', pageTitle);
+  if (pageTitle !== 'Big Sevis Minispiel Party') errors.push('Browser-Titel falsch: ' + pageTitle);
+
+  // Sicherstellen, dass NIRGENDS mehr Tür-Spiel-UI existiert
+  const doorLeftovers = await page.locator('.doors, .door, .hud, .world-viewport, .joystick, #btn-arcade').count();
+  if (doorLeftovers > 0) errors.push('Tür-Spiel-Überbleibsel im DOM gefunden: ' + doorLeftovers);
+
+  // --- 1) SOLO: Minispiel -> Schwierigkeit -> Spiel -> Ergebnis ---
+  await page.click('#btn-play');
   await page.waitForTimeout(150);
   const cardCount = await page.locator('.arcade-card').count();
-  console.log('Anzahl Minispiel-Karten:', cardCount);
+  console.log('Anzahl Minispiel-Karten (SOLO):', cardCount);
   if (cardCount !== 8) errors.push(`Erwartet 8 Minispiel-Karten, gefunden ${cardCount}`);
 
-  for (let i = 0; i < cardCount; i++) {
-    const cards = page.locator('.arcade-card');
-    const name = await cards.nth(i).locator('.arcade-card__name').textContent();
-    await cards.nth(i).click();
-    await page.waitForTimeout(400);
-    const stageVisible = await page.locator('#screen-arcade-play').isVisible();
-    if (!stageVisible) errors.push(`Spiel "${name}" hat #screen-arcade-play nicht angezeigt`);
-    // kurz "spielen": irgendein klickbares Element im Stage-Bereich antippen, falls vorhanden
-    const clickable = page.locator('#arcade-stage button, #arcade-stage .bp-balloon, #arcade-stage .sc-star, #arcade-stage .mm-card');
-    const n = await clickable.count();
-    if (n > 0) { try { await clickable.first().click({ timeout: 500 }); } catch { /* ignorieren, kann verschwunden sein */ } }
-    await page.waitForTimeout(300);
-    await page.click('#btn-arcade-quit');
-    await page.waitForTimeout(150);
-    const backHome = await page.locator('#screen-arcade').isVisible();
-    if (!backHome) errors.push(`Nach Quit von "${name}" nicht zurück auf #screen-arcade`);
-  }
-  console.log('Alle 8 Minispiele: öffnen + verlassen ohne Absturz OK');
-
-  // --- 2) Color Trick komplett durchspielen (richtige Antworten) und Ergebnis prüfen ---
   await page.locator('.arcade-card').filter({ hasText: 'Color Trick' }).click();
+  await page.waitForTimeout(200);
+  const difficultyVisible = await page.locator('#screen-arcade-difficulty').isVisible();
+  console.log('Schwierigkeits-Screen sichtbar:', difficultyVisible);
+  if (!difficultyVisible) errors.push('Schwierigkeits-Screen erscheint nicht nach Minispiel-Auswahl');
+  await page.click('[data-arcade-difficulty="hard"]');
   await page.waitForTimeout(300);
+
   for (let round = 0; round < 14; round++) {
     const wordText = await page.locator('.ct-word').textContent().catch(() => null);
-    if (!wordText) break; // Runde vorbei / Spiel beendet
+    if (!wordText) break;
     const options = page.locator('.ct-option');
     const optCount = await options.count();
-    let clicked = false;
     for (let j = 0; j < optCount; j++) {
       const t = await options.nth(j).textContent();
-      if (t.trim() === wordText.trim()) { await options.nth(j).click(); clicked = true; break; }
+      if (t.trim() === wordText.trim()) { await options.nth(j).click(); break; }
     }
-    if (!clicked) break;
     await page.waitForTimeout(320);
   }
   await page.waitForTimeout(300);
   const resultVisible = await page.locator('#arcade-result').isVisible();
-  console.log('Color-Trick Ergebnis-Screen sichtbar:', resultVisible);
-  if (!resultVisible) errors.push('Color Trick zeigt nach 12 Runden keinen Ergebnis-Screen');
+  console.log('SOLO Ergebnis-Screen sichtbar:', resultVisible);
+  if (!resultVisible) errors.push('Color Trick zeigt keinen Ergebnis-Screen');
   const tierText = await page.locator('.arcade-result__tier').textContent().catch(() => null);
-  console.log('Color-Trick Belohnungsstufe:', tierText);
+  const diffText = await page.locator('.arcade-result__difficulty').textContent().catch(() => null);
+  console.log('Belohnungsstufe:', tierText, '| Schwierigkeit-Label:', diffText);
+  if (!diffText || !diffText.includes('Schwer')) errors.push('Schwierigkeit "Schwer" wird im Ergebnis nicht angezeigt');
   await page.click('#btn-arcade-home');
   await page.waitForTimeout(200);
 
-  // Highscore-Chip sollte jetzt auf der Karte auftauchen
   const bestChip = await page.locator('.arcade-card').filter({ hasText: 'Color Trick' }).locator('.arcade-card__best').count();
-  console.log('Highscore-Chip nach erster Runde vorhanden:', bestChip > 0);
-  if (bestChip === 0) errors.push('Kein Highscore-Chip nach abgeschlossener Color-Trick-Runde');
+  console.log('Highscore-Chip vorhanden:', bestChip > 0);
+  if (bestChip === 0) errors.push('Kein Highscore-Chip nach abgeschlossener Runde');
 
-  // --- 3) Mystery Box: Öffnen, Skip, Reveal, Continue ---
-  await page.click('[data-back="screen-menu"]'); // vom Arcade-Screen zurück ins Menü (erstes passende Element)
+  // --- 2) SHOP: Box kaufen -> Animation -> Skin im Spind ---
+  await page.click('[data-back="screen-menu"]:visible');
   await page.waitForTimeout(150);
-  await page.click('#btn-mysterybox');
+  await page.click('#btn-shop');
   await page.waitForTimeout(150);
-  await page.click('#btn-mysterybox-open');
+  const boxCount = await page.locator('.shop-card').count();
+  console.log('Anzahl Boxen im Shop:', boxCount);
+  if (boxCount !== 3) errors.push('Erwartet 3 Boxen im Shop, gefunden ' + boxCount);
+  const coinsBefore = await page.locator('#shop-coins').textContent();
+  console.log('Münzen vor Kauf:', coinsBefore);
+
+  await page.locator('.shop-card').filter({ hasText: 'Mega Box' }).locator('.shop-card__buy').click();
   await page.waitForTimeout(200);
   const overlayVisible = await page.locator('#mysterybox-animation').isVisible();
-  console.log('Mystery-Box-Overlay sichtbar:', overlayVisible);
-  if (!overlayVisible) errors.push('Mystery-Box-Overlay wurde nicht angezeigt');
-  // "Überspringen" wird erst nach kurzer Zeit aktiv - warten und dann klicken
-  await page.waitForTimeout(1200);
-  const skipVisible = await page.locator('#mb-skip').isVisible();
-  if (skipVisible) await page.click('#mb-skip');
+  console.log('Box-Öffnungsanimation sichtbar:', overlayVisible);
+  if (!overlayVisible) errors.push('Box-Öffnungsanimation erscheint nicht nach Kauf');
+  await page.waitForTimeout(1300);
+  if (await page.locator('#mb-skip').isVisible()) await page.click('#mb-skip');
   await page.waitForTimeout(400);
-  const revealVisible = await page.locator('#mb-reveal').isVisible();
-  console.log('Mystery-Box Reveal sichtbar:', revealVisible);
-  if (!revealVisible) errors.push('Mystery-Box Reveal wurde nicht angezeigt');
   const revealName = await page.locator('#mb-reveal-name').textContent();
-  console.log('Gezogener Skin:', revealName);
+  console.log('Aus Mega Box gezogener Skin:', revealName);
   await page.click('#mb-continue');
   await page.waitForTimeout(300);
-  const overlayGoneAfter = await page.locator('#mysterybox-animation').isVisible();
-  if (overlayGoneAfter) errors.push('Mystery-Box-Overlay wurde nach "Weiter" nicht ausgeblendet');
+  const coinsAfter = await page.locator('#shop-coins').textContent();
+  console.log('Münzen nach Kauf:', coinsAfter);
+  if (coinsBefore === coinsAfter) errors.push('Münzen wurden beim Boxkauf nicht abgezogen');
+
+  await page.click('[data-back="screen-menu"]:visible');
+  await page.waitForTimeout(150);
+  await page.click('#btn-locker');
+  await page.waitForTimeout(200);
+  const lockerCards = await page.locator('.locker-skin-card:not(.locker-skin-card--locked)').count();
+  console.log('Freigeschaltete Skins im Spind:', lockerCards);
+  if (lockerCards < 2) errors.push('Der gezogene Skin taucht nicht als freigeschaltet im Spind auf');
+
+  // --- 3) Missionen & Daily ---
+  await page.click('[data-back="screen-menu"]:visible');
+  await page.waitForTimeout(150);
+  await page.click('#btn-missions');
+  await page.waitForTimeout(150);
+  const missionRows = await page.locator('.mission-row').count();
+  console.log('Anzahl Missionen:', missionRows);
+  if (missionRows < 9) errors.push('Weniger Missionen als erwartet: ' + missionRows);
+  const missionText = await page.locator('.mission-row').allTextContents();
+  if (!missionText.some((t) => t.includes('🪙'))) errors.push('Missionsbelohnungen zeigen keine Münzen an');
+
+  await page.click('[data-back="screen-menu"]:visible');
+  await page.waitForTimeout(150);
+  await page.click('#btn-daily');
+  await page.waitForTimeout(150);
+  const dailyStatus = await page.locator('#daily-status').textContent();
+  console.log('Daily-Status:', dailyStatus);
+  await page.click('#btn-daily-claim');
+  await page.waitForTimeout(150);
+  const dailyStatusAfter = await page.locator('#daily-status').textContent();
+  console.log('Daily-Status nach Abholen:', dailyStatusAfter);
+  if (dailyStatus === dailyStatusAfter) errors.push('Daily-Belohnung ändert den Status nach Abholen nicht');
 
   await browser.close();
   console.log(errors.length ? 'FEHLER:\n' + errors.join('\n') : 'KEINE JS-FEHLER, ALLE CHECKS OK');

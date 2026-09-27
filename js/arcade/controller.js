@@ -1,18 +1,28 @@
 // js/arcade/controller.js
 // Orchestriert das gesamte Minispiel-System: Auswahl-Bildschirm, gemeinsame
 // HUD-Leiste (Timer/Score/Combo), Starten/Beenden eines Minispiels und den
-// Ergebnis-/Belohnungs-Screen danach (Punkte 2, 9, 11 des Prompts).
-// Kein eigenes Schwierigkeits-Auswahlmenü pro Spiel - direkter Ablauf
-// Auswahl -> Start -> Spiel -> Ergebnis -> Belohnung -> Zurück/Nächstes (Punkt 10).
+// Ergebnis-/Belohnungs-Screen danach. Seit der Umstellung auf "Big Sevis
+// Minispiel Party" ist dies der komplette SOLO-Modus (kein Türen-System
+// mehr) und wird für ONLINE-Runden wiederverwendet (siehe main.js).
 import { ARCADE_GAMES, getArcadeGame } from "./registry.js";
 import { rewardTierFromPercent } from "./engine.js";
 import { applyArcadeRewards } from "../rewards/profile.js";
 
 const el = (sel) => document.querySelector(sel);
 
-export function createArcadeController({ getProfile, saveProfile, showScreen, audio, renderProfileSummary }) {
+// Schwierigkeit wirkt bewusst NUR auf die Belohnung, nicht auf die Spiellogik
+// selbst - die acht Minispiele bleiben dadurch unverändert und stabil.
+// "Schwer" verlangt einen höheren Score für dieselbe Belohnungsstufe, gibt
+// dafür aber am Ende spürbar mehr Münzen & XP.
+export const DIFFICULTY_DEFS = {
+  easy: { label: "Leicht", percentBonus: 15, rewardMultiplier: 0.8 },
+  normal: { label: "Normal", percentBonus: 0, rewardMultiplier: 1 },
+  hard: { label: "Schwer", percentBonus: -15, rewardMultiplier: 1.4 },
+};
+
+export function createArcadeController({ getProfile, saveProfile, showScreen, audio, renderProfileSummary, onPickGame }) {
   let activeGame = null;
-  let currentGameId = null;
+  let currentDifficulty = "normal";
   let rng = Math.random;
 
   function renderHome() {
@@ -29,7 +39,11 @@ export function createArcadeController({ getProfile, saveProfile, showScreen, au
         <div class="arcade-card__tagline">${g.tagline}</div>
         ${best ? `<div class="arcade-card__best">🏆 Highscore: ${best}</div>` : ""}
       `;
-      card.addEventListener("click", () => { audio.sfx("click"); openGame(g.id); });
+      card.addEventListener("click", () => {
+        audio.sfx("click");
+        if (onPickGame) onPickGame(g.id);
+        else openGame(g.id);
+      });
       list.appendChild(card);
     });
   }
@@ -39,10 +53,10 @@ export function createArcadeController({ getProfile, saveProfile, showScreen, au
     showScreen("screen-arcade");
   }
 
-  function openGame(gameId) {
+  function openGame(gameId, difficultyId = "normal") {
     const meta = getArcadeGame(gameId);
     if (!meta) return;
-    currentGameId = gameId;
+    currentDifficulty = DIFFICULTY_DEFS[difficultyId] ? difficultyId : "normal";
     showScreen("screen-arcade-play");
     el("#arcade-play-title").textContent = `${meta.icon} ${meta.name}`;
     el("#arcade-result").classList.add("hidden");
@@ -86,9 +100,13 @@ export function createArcadeController({ getProfile, saveProfile, showScreen, au
     const stage = el("#arcade-stage");
     stage.classList.add("hidden");
     const profile = getProfile();
-    const tier = rewardTierFromPercent(result.percent ?? 0);
+    const diff = DIFFICULTY_DEFS[currentDifficulty];
+    const adjustedPercent = Math.max(0, Math.min(100, (result.percent ?? 0) + diff.percentBonus));
+    const tier = rewardTierFromPercent(adjustedPercent);
+    const xpEarned = Math.round(tier.xp * diff.rewardMultiplier);
+    const coinsEarned = Math.round(tier.coins * diff.rewardMultiplier);
     const { isNewHighscore, levelUps } = applyArcadeRewards(profile, {
-      gameId, xpEarned: tier.xp, coinsEarned: tier.coins, score: result.score,
+      gameId, xpEarned, coinsEarned, score: result.score, maxCombo: result.maxCombo ?? 0,
     });
     saveProfile(profile);
     renderProfileSummary(profile);
@@ -98,7 +116,6 @@ export function createArcadeController({ getProfile, saveProfile, showScreen, au
     else audio.sfx("treasure");
     if (levelUps.length) audio.sfx("levelUp");
 
-    const meta = getArcadeGame(gameId);
     const resultBox = el("#arcade-result");
     resultBox.innerHTML = `
       <div class="arcade-result__card">
@@ -107,9 +124,10 @@ export function createArcadeController({ getProfile, saveProfile, showScreen, au
         ${result.maxCombo > 1 ? `<div class="arcade-result__combo">COMBO x${result.maxCombo}</div>` : ""}
         ${isNewHighscore ? `<div class="arcade-result__highscore">🏆 NEUER HIGHSCORE!</div>` : ""}
         <div class="arcade-result__rewards">
-          <span class="arcade-reward-chip">+${tier.xp} XP</span>
-          <span class="arcade-reward-chip">+${tier.coins} 🪙</span>
+          <span class="arcade-reward-chip">+${xpEarned} XP</span>
+          <span class="arcade-reward-chip">+${coinsEarned} 🪙</span>
         </div>
+        <div class="arcade-result__difficulty">Schwierigkeit: ${diff.label}</div>
         ${levelUps.length ? `<div class="arcade-result__levelup">LEVEL UP! Level ${levelUps[levelUps.length - 1]}</div>` : ""}
         <div class="arcade-result__actions">
           <button id="btn-arcade-retry" class="btn btn--primary">NOCHMAL SPIELEN</button>
@@ -121,8 +139,8 @@ export function createArcadeController({ getProfile, saveProfile, showScreen, au
     resultBox.classList.remove("hidden");
     el("#arcade-combo").classList.add("hidden");
 
-    el("#btn-arcade-retry").addEventListener("click", () => { audio.sfx("click"); openGame(gameId); });
-    el("#btn-arcade-next").addEventListener("click", () => { audio.sfx("click"); openGame(pickNextGameId(gameId)); });
+    el("#btn-arcade-retry").addEventListener("click", () => { audio.sfx("click"); openGame(gameId, currentDifficulty); });
+    el("#btn-arcade-next").addEventListener("click", () => { audio.sfx("click"); openGame(pickNextGameId(gameId), currentDifficulty); });
     el("#btn-arcade-home").addEventListener("click", () => { audio.sfx("click"); openHome(); });
   }
 

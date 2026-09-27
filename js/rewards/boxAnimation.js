@@ -9,7 +9,7 @@ import { audio } from "../audio/audio.js";
 
 const el = (sel) => document.querySelector(sel);
 
-// result = Rückgabewert von openMysteryBox() aus mysteryBox.js
+// result = Rückgabewert von purchaseBox() aus shop/shop.js
 export function playBoxOpeningAnimation(result) {
   return new Promise((resolve) => {
     const overlay = el("#mysterybox-animation");
@@ -22,18 +22,20 @@ export function playBoxOpeningAnimation(result) {
     overlay.classList.remove("hidden");
     box.classList.remove("hidden", "mb-box--wobble", "mb-box--open");
     burst.classList.add("hidden");
+    burst.style.removeProperty("--burst-color");
     reveal.classList.add("hidden");
     skipBtn.classList.add("hidden");
     continueBtn.classList.add("hidden");
 
     if (!result.success) {
-      // Keine Schlüssel mehr - kurzer, ehrlicher Hinweis statt Fake-Animation.
+      // Sollte durch den deaktivierten Kaufen-Button im Shop eigentlich nicht
+      // vorkommen - trotzdem ein ehrlicher Hinweis statt einer Fake-Animation.
       box.classList.add("hidden");
       reveal.classList.remove("hidden");
       el("#mb-reveal-canvas").classList.add("hidden");
-      el("#mb-reveal-name").textContent = "Keine Schlüssel übrig";
+      el("#mb-reveal-name").textContent = "Kauf nicht möglich";
       el("#mb-reveal-rarity").textContent = "";
-      el("#mb-reveal-extra").textContent = "Sammle Schlüssel über Missionen und die tägliche Belohnung.";
+      el("#mb-reveal-extra").textContent = "Nicht genug Münzen für diese Box.";
       continueBtn.classList.remove("hidden");
       const done = () => { cleanup(); resolve(); };
       continueBtn.addEventListener("click", done, { once: true });
@@ -60,6 +62,9 @@ export function playBoxOpeningAnimation(result) {
     function openBox() {
       box.classList.add("mb-box--open");
       audio.sfx("boxBurst");
+      const rarity = RARITY[result.skin.rarity];
+      burst.style.setProperty("--burst-color", rarity.color);
+      burst.classList.toggle("mb-burst--epic", !!rarity.glow);
       burst.classList.remove("hidden");
       after(500, () => { if (!skipped) showReveal(); });
     }

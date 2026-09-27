@@ -1,7 +1,13 @@
 // js/rewards/profile.js
-// Persistentes Profil: Level, XP, Münzen (Bank), Schlüssel, freigeschaltete Skins.
+// Persistentes Profil: Level, XP, Münzen (Bank), freigeschaltete Skins.
 // storage ist injizierbar (Default: window.localStorage), damit dies auch
 // ohne Browser (z.B. in Tests) funktioniert.
+//
+// Hinweis zur Umstellung "Big Sevis Minispiel Party": Das frühere
+// Schlüssel-System (profile.keys) wurde entfernt und durch Münzen + Shop/
+// Box-Käufe ersetzt (siehe js/shop/shop.js). Es gibt keine Tür-Runden mehr,
+// daher auch keine runsPlayed/roomsCleared/doorsOpened-Statistiken mehr -
+// die Minispiel-Statistiken (arcade*) sind jetzt die einzige Quelle.
 
 const STORAGE_KEY = "nwo_profile_v1";
 const XP_PER_LEVEL = 100;
@@ -10,16 +16,27 @@ function defaultProfile() {
   return {
     level: 1,
     xp: 0,
-    coins: 0, // Bank-Münzen, dauerhaft (getrennt von riskCoins/securedCoins im Run)
-    keys: 0,
+    coins: 0, // einzige Währung - wird im Shop gegen Boxen eingetauscht
     unlockedSkins: ["mario"],
     equippedSkin: "mario",
-    stats: { runsPlayed: 0, runsFled: 0, runsDied: 0, roomsCleared: 0, doorsOpened: 0, coinsEverEarned: 0, arcadeRoundsPlayed: 0 },
+    stats: {
+      coinsEverEarned: 0,
+      arcadeRoundsPlayed: 0,
+      totalArcadeScore: 0,
+      bestCombo: 0,
+      distinctGamesPlayed: 0,
+      highscoresAchieved: 0,
+      boxesOpened: 0,
+    },
+    // Welche Minispiel-IDs schon mindestens einmal gespielt wurden (für die
+    // "Spiele 5 verschiedene Minispiele"-Mission; stats.distinctGamesPlayed
+    // ist nur die daraus abgeleitete Zahl, damit Missionen generisch bleiben).
+    arcadeGamesPlayed: [],
     claimedMissions: [],
     dailyReward: { lastClaimDate: null, streakDay: 0 },
     settings: { musicVolume: 0.5, sfxVolume: 0.7, vibration: true },
     // Bestwerte pro Minispiel (key = gameId), für Highscore-Anzeige auf den
-    // Minispiel-Karten (Punkt 9 des Prompts).
+    // Minispiel-Karten.
     arcadeHighscores: {},
   };
 }
@@ -32,8 +49,8 @@ export function loadProfile(storage = safeStorage()) {
     const base = defaultProfile();
     // Flache Spreads würden verschachtelte Objekte (stats/settings/...) aus
     // älteren gespeicherten Profilen komplett ersetzen und dabei neu
-    // hinzugekommene Felder verlieren (z.B. arcadeRoundsPlayed) - daher hier
-    // pro verschachteltem Objekt einzeln mergen statt alles zu überschreiben.
+    // hinzugekommene Felder verlieren - daher hier pro verschachteltem
+    // Objekt einzeln mergen statt alles zu überschreiben.
     return {
       ...base,
       ...parsed,
@@ -41,6 +58,7 @@ export function loadProfile(storage = safeStorage()) {
       settings: { ...base.settings, ...(parsed.settings ?? {}) },
       dailyReward: { ...base.dailyReward, ...(parsed.dailyReward ?? {}) },
       arcadeHighscores: { ...base.arcadeHighscores, ...(parsed.arcadeHighscores ?? {}) },
+      arcadeGamesPlayed: parsed.arcadeGamesPlayed ?? base.arcadeGamesPlayed,
     };
   } catch {
     return defaultProfile();
@@ -62,48 +80,49 @@ function safeStorage() {
   };
 }
 
-// Belohnungen aus einer beendeten Runde ins Profil einbuchen
-export function applyRunRewards(profile, { coinsEarned, xpEarned, keysEarned, fled, roomsCleared }) {
-  profile.coins += coinsEarned;
-  profile.keys += keysEarned;
-  profile.xp += xpEarned;
-  profile.stats.runsPlayed++;
-  profile.stats.coinsEverEarned += coinsEarned;
-  profile.stats.roomsCleared += roomsCleared ?? 0;
-  profile.stats.doorsOpened += roomsCleared ?? 0;
-  if (fled) profile.stats.runsFled++;
-  else profile.stats.runsDied++;
-
-  // Flache XP-Kurve für Phase 3 (bewusst einfach, in Phase 7 ggf. verfeinern)
+function applyLevelUps(profile) {
   const levelUps = [];
   while (profile.xp >= XP_PER_LEVEL) {
     profile.xp -= XP_PER_LEVEL;
     profile.level++;
     levelUps.push(profile.level);
   }
-  return { profile, levelUps };
+  return levelUps;
 }
 
-// Belohnung aus einer Minispiel-Runde einbuchen (Arcade-System, Punkt 5 des
-// Prompts). Getrennt von applyRunRewards, weil Minispiele nicht "fled/died"
-// kennen, dafür aber einen Highscore pro Spiel führen.
-export function applyArcadeRewards(profile, { gameId, xpEarned, coinsEarned, score }) {
+// Belohnung aus einer Minispiel-Runde einbuchen (SOLO und ONLINE gemeinsam
+// genutzt). gameId/score/maxCombo fließen zusätzlich in die Missionen und
+// den Highscore pro Spiel ein.
+export function applyArcadeRewards(profile, { gameId, xpEarned, coinsEarned, score, maxCombo = 0 }) {
   profile.coins += coinsEarned;
   profile.xp += xpEarned;
   profile.stats.arcadeRoundsPlayed = (profile.stats.arcadeRoundsPlayed ?? 0) + 1;
   profile.stats.coinsEverEarned += coinsEarned;
+  profile.stats.totalArcadeScore = (profile.stats.totalArcadeScore ?? 0) + Math.max(0, score);
+  profile.stats.bestCombo = Math.max(profile.stats.bestCombo ?? 0, maxCombo);
+
+  if (!profile.arcadeGamesPlayed.includes(gameId)) {
+    profile.arcadeGamesPlayed.push(gameId);
+    profile.stats.distinctGamesPlayed = profile.arcadeGamesPlayed.length;
+  }
 
   const previousBest = profile.arcadeHighscores[gameId] ?? 0;
   const isNewHighscore = score > previousBest;
-  if (isNewHighscore) profile.arcadeHighscores[gameId] = score;
-
-  const levelUps = [];
-  while (profile.xp >= XP_PER_LEVEL) {
-    profile.xp -= XP_PER_LEVEL;
-    profile.level++;
-    levelUps.push(profile.level);
+  if (isNewHighscore) {
+    profile.arcadeHighscores[gameId] = score;
+    profile.stats.highscoresAchieved = (profile.stats.highscoresAchieved ?? 0) + 1;
   }
+
+  const levelUps = applyLevelUps(profile);
   return { profile, levelUps, isNewHighscore, previousBest };
+}
+
+// Münzen aus der täglichen Belohnung / Missionen direkt einbuchen (ohne
+// Highscore-/Minispiel-Logik).
+export function grantCoins(profile, amount) {
+  profile.coins += amount;
+  profile.stats.coinsEverEarned += Math.max(0, amount);
+  return applyLevelUps(profile);
 }
 
 export function unlockSkin(profile, skinId) {

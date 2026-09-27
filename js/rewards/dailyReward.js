@@ -1,13 +1,16 @@
 // js/rewards/dailyReward.js
-
+// Tägliche Belohnung / Streak. Gibt jetzt ausschließlich Münzen (kein
+// Schlüssel-System mehr) - passend zum neuen Shop-/Box-Kreislauf. Tag 7 ist
+// bewusst ein großer Münzsprung ("Jackpot-Tag"), damit sich das Durchhalten
+// der Serie lohnt.
 const DAILY_TABLE = [
   { day: 1, type: "coins", amount: 50 },
-  { day: 2, type: "keys", amount: 1 },
-  { day: 3, type: "coins", amount: 80 },
-  { day: 4, type: "keys", amount: 1 },
-  { day: 5, type: "coins", amount: 120 },
-  { day: 6, type: "keys", amount: 2 },
-  { day: 7, type: "coins", amount: 300 },
+  { day: 2, type: "coins", amount: 90 },
+  { day: 3, type: "coins", amount: 140 },
+  { day: 4, type: "coins", amount: 200 },
+  { day: 5, type: "coins", amount: 280 },
+  { day: 6, type: "coins", amount: 380 },
+  { day: 7, type: "coins", amount: 600 },
 ];
 
 function todayKey(date = new Date()) {
@@ -26,8 +29,8 @@ export function claimDaily(profile, now = new Date()) {
   const nextStreak = isConsecutive ? (profile.dailyReward.streakDay % 7) + 1 : 1;
 
   const reward = DAILY_TABLE[nextStreak - 1];
-  if (reward.type === "coins") profile.coins += reward.amount;
-  if (reward.type === "keys") profile.keys += reward.amount;
+  profile.coins += reward.amount;
+  profile.stats.coinsEverEarned += reward.amount;
 
   profile.dailyReward.lastClaimDate = todayKey(now);
   profile.dailyReward.streakDay = nextStreak;

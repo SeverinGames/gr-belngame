@@ -1,36 +1,28 @@
 // js/game/main.js
-import { RunManager } from "./runManager.js";
-import { RunPlayer } from "../player/player.js";
-import { getStarterSkin } from "../skins/skins.js";
+// "Big Sevis Minispiel Party" - seit der Umstellung besteht das Spiel nur
+// noch aus den acht Minispielen (SOLO = alleine, ONLINE = gegen andere
+// Spieler mit Rangliste). Das komplette frühere Türen-Dungeon-System wurde
+// entfernt (siehe git-Historie/vorherige Version, falls es je gebraucht wird).
+import { getStarterSkin, getSkinById, SKINS, RARITY } from "../skins/skins.js";
 import {
-  renderHUD, renderOutcome, hideOutcome,
-  renderDecision, hideDecision, renderEndScreen, renderSkinBadge, showScreen,
-  renderBotRoster, renderBotFeed,
+  renderSkinBadge, renderProfileSummary, renderMissions, renderDailyStatus,
+  renderShop, showScreen,
 } from "../ui/ui.js";
-import { loadProfile, saveProfile, applyRunRewards } from "../rewards/profile.js";
+import { loadProfile, saveProfile, grantCoins } from "../rewards/profile.js";
 import { canClaimDaily, claimDaily } from "../rewards/dailyReward.js";
 import { listMissionProgress, claimMission } from "../missions/missions.js";
-import { openMysteryBox } from "../rewards/mysteryBox.js";
+import { listBoxes, purchaseBox } from "../shop/shop.js";
 import { playBoxOpeningAnimation } from "../rewards/boxAnimation.js";
 import { createArcadeController } from "../arcade/controller.js";
+import { ARCADE_GAMES, getArcadeGame } from "../arcade/registry.js";
 import { audio } from "../audio/audio.js";
 import { socket } from "../network/socketClient.js";
 import { SERVER_URL } from "../network/config.js";
-import { WorldGame } from "../world/worldGame.js";
 import { drawCharacter, getSkinPalette } from "../world/characterSprite.js";
-import { SKINS, RARITY, getSkinById } from "../skins/skins.js";
-import { createReactionChallenge, scoreReaction, reactionOutcome } from "../minigames/reactionGame.js";
-import { createHideChallenge, resolveHideOutcome, hideOutcomeMessage } from "../minigames/hideGame.js";
-import {
-  renderProfileSummary, renderMissions, renderDailyStatus,
-  renderMysteryBoxStatus, renderMysteryBoxResult,
-} from "../ui/ui.js";
 
-let runManager = null;
-let worldGame = null;
 let profile = loadProfile();
-let pendingDifficulty = "normal";
-let pendingRoomTheme = "lobby";
+const myOnlineName = getSkinById(profile.equippedSkin ?? "mario").name + "-" + Math.floor(Math.random() * 90 + 10);
+let pendingArcadeGameId = null; // wartet auf Schwierigkeitsauswahl (SOLO)
 
 const arcadeController = createArcadeController({
   getProfile: () => profile,
@@ -38,193 +30,22 @@ const arcadeController = createArcadeController({
   showScreen,
   audio,
   renderProfileSummary,
+  onPickGame: (gameId) => openArcadeDifficultyScreen(gameId),
 });
-
-function startSoloRun(difficulty, saboteurPreset) {
-  pendingRoomTheme = "lobby";
-  const skin = getSkinById(profile.equippedSkin) ?? getStarterSkin();
-  const player = new RunPlayer("Du", skin.id);
-  const urlSeed = new URLSearchParams(location.search).get("seed");
-  const seed = urlSeed ? Number(urlSeed) : undefined;
-  runManager = new RunManager({ difficulty, player, botCount: 2, saboteurPreset, seed });
-  renderSkinBadge(skin.id);
-  renderBotRoster(runManager.bots);
-  showScreen("screen-game");
-  hideOutcome();
-  hideDecision();
-  renderHUD(runManager);
-  audio.playMood("normal");
-
-  if (worldGame) worldGame.destroy();
-  worldGame = new WorldGame({
-    canvas: el("#world-canvas"),
-    joystickEl: el("#mobile-joystick"),
-    interactBtnEl: el("#mobile-interact"),
-    runManager,
-    skinId: skin.id,
-    callbacks: { onDoorChosen, onHideTick: updateHideTimerBar },
-  });
-  worldGame.start();
-  nextDoors();
-}
-
-function nextDoors() {
-  const doors = runManager.generateDoors();
-  worldGame.loadRoom(doors, pendingRoomTheme);
-}
-
-function onDoorChosen(doorId) {
-  const door = runManager.currentDoors.find((d) => d.id === doorId);
-  pendingRoomTheme = door ? door.roomType.id : "lobby";
-  if (door && runManager.isMinigameDoor(door)) {
-    audio.sfx("doorOpen");
-    if (door.roomType.id === "reactionGame") return startReactionMinigame(doorId);
-    if (door.roomType.id === "hideGame") return startHideMinigameFlow(doorId);
-  }
-  audio.sfx("doorOpen");
-  worldGame.room.doors = []; // Türen der aktuellen Runde deaktivieren, bis der nächste Raum geladen wird
-  const { outcome } = runManager.chooseDoor(doorId);
-  handleResolvedOutcome(outcome);
-}
-
-// Gemeinsame Weiterverarbeitung, egal ob Tür-Zufallsereignis oder Minispiel-Ergebnis
-function handleResolvedOutcome(outcome) {
-  renderHUD(runManager);
-  renderOutcome(outcome);
-  renderBotFeed(runManager.getBotReactions(outcome.kind));
-
-  if (outcome.kind === "reward") audio.sfx("treasure");
-  else if (outcome.kind === "danger") { audio.sfx("damage"); audio.playMood("danger"); }
-
-  if (runManager.finished) {
-    if (runManager.result === "died") audio.sfx("death");
-    setTimeout(() => finishRun(), 900);
-    return;
-  }
-
-  if (outcome.kind !== "danger") audio.playMood("normal");
-
-  const canExit = runManager.exitAvailable();
-  setTimeout(() => {
-    if (canExit) renderBotFeed(runManager.getBotFleeVotes().map((v) => ({ bot: v.bot, comment: v.comment })));
-    renderDecision(canExit, {
-      onFlee: () => {
-        audio.sfx("flee");
-        runManager.flee();
-        finishRun();
-      },
-      onContinue: () => {
-        audio.sfx("click");
-        hideOutcome();
-        hideDecision();
-        nextDoors();
-      },
-    });
-  }, 700);
-}
-
-// --- Reaktionsspiel: gemeinsame Anzeige-/Eingabelogik für Solo UND Online ---
-// callback(reactionMs) wird mit reactionMs=-1 (zu früh) oder der gemessenen
-// Zeit aufgerufen; die eigentliche Auswertung entscheidet der Aufrufer.
-function runReactionMinigamePresentation(challenge, callback) {
-  const overlay = el("#minigame-reaction");
-  const statusEl = el("#reaction-status");
-  const symbolEl = el("#reaction-symbol");
-  overlay.classList.remove("hidden");
-  statusEl.textContent = "Bereit machen...";
-  symbolEl.classList.add("hidden");
-
-  let revealTime = null;
-  let finished = false;
-
-  const cleanup = () => {
-    window.removeEventListener("keydown", onKey);
-    overlay.removeEventListener("click", onTap);
-    overlay.classList.add("hidden");
-  };
-  const finish = (reactionMs) => {
-    if (finished) return;
-    finished = true;
-    cleanup();
-    callback(reactionMs);
-  };
-  const onKey = (e) => {
-    if (e.key === "Escape") return;
-    finish(revealTime === null ? -1 : performance.now() - revealTime);
-  };
-  const onTap = () => finish(revealTime === null ? -1 : performance.now() - revealTime);
-
-  window.addEventListener("keydown", onKey);
-  overlay.addEventListener("click", onTap);
-
-  setTimeout(() => {
-    if (finished) return;
-    statusEl.textContent = "JETZT!";
-    symbolEl.textContent = challenge.symbol;
-    symbolEl.classList.remove("hidden");
-    revealTime = performance.now();
-    setTimeout(() => finish(challenge.windowMs + 1), challenge.windowMs + 50);
-  }, challenge.revealDelayMs);
-}
-
-// --- Reaktionsspiel-Ablauf (Solo) ---
-function startReactionMinigame(doorId) {
-  worldGame.room.doors = [];
-  const challenge = createReactionChallenge(() => runManager.rng.next(), runManager.dynamicDifficultyFactor);
-  runReactionMinigamePresentation(challenge, (reactionMs) => {
-    const result = reactionMs < 0
-      ? { success: false, reason: "too-early", speedRatio: 0 }
-      : scoreReaction(reactionMs, challenge.windowMs);
-    const outcome = reactionOutcome(result, runManager.dynamicDifficultyFactor);
-    const { outcome: appliedOutcome } = runManager.resolveMinigameDoor(doorId, outcome);
-    handleResolvedOutcome(appliedOutcome);
-  });
-}
-
-// --- Versteckspiel-Ablauf ---
-function startHideMinigameFlow(doorId) {
-  const challenge = createHideChallenge(() => runManager.rng.next(), runManager.dynamicDifficultyFactor);
-  el("#minigame-hide").classList.remove("hidden");
-  updateHideTimerBar(1);
-
-  worldGame.startHideChallenge(challenge, (hiddenSpotIndex, spotCount) => {
-    el("#minigame-hide").classList.add("hidden");
-    const result = resolveHideOutcome(hiddenSpotIndex, spotCount, () => runManager.rng.next());
-    const outcome = hideOutcomeMessage(result, runManager.dynamicDifficultyFactor);
-    const { outcome: appliedOutcome } = runManager.resolveMinigameDoor(doorId, outcome);
-    handleResolvedOutcome(appliedOutcome);
-  });
-}
-
-function updateHideTimerBar(fraction) {
-  const fill = el("#hide-timer-fill");
-  if (fill) fill.style.width = `${Math.round(fraction * 100)}%`;
-}
-
-function finishRun() {
-  audio.stopMusic();
-  if (worldGame) worldGame.stop();
-  const fled = runManager.result === "fled";
-  const coinsEarned = runManager.player.securedCoins;
-  const xpEarned = runManager.player.xp;
-  const keysEarned = fled && runManager.roomsCleared >= 5 ? 1 : 0;
-  const levelBefore = profile.level;
-  applyRunRewards(profile, {
-    coinsEarned, xpEarned, keysEarned, fled, roomsCleared: runManager.roomsCleared,
-  });
-  if (profile.level > levelBefore) audio.sfx("levelUp");
-  saveProfile(profile);
-  const saboteurReveal = runManager.revealSaboteur();
-  renderEndScreen(runManager, saboteurReveal);
-}
 
 function el(sel) {
   return document.querySelector(sel);
 }
 
+function openArcadeDifficultyScreen(gameId) {
+  pendingArcadeGameId = gameId;
+  const meta = getArcadeGame(gameId);
+  el("#arcade-difficulty-gamename").textContent = meta ? `${meta.icon} ${meta.name}` : "";
+  showScreen("screen-arcade-difficulty");
+}
+
 function resetToMenu() {
   showScreen("screen-menu");
-  el("#screen-end").classList.add("hidden");
   renderProfileSummary(profile);
   audio.playMood("menu");
 }
@@ -246,25 +67,34 @@ function handleClaimMission(missionId) {
   renderProfileSummary(profile);
 }
 
-function openMysteryBoxScreen() {
-  showScreen("screen-mysterybox");
-  renderMysteryBoxStatus(profile);
-  el("#mysterybox-result").innerHTML = "";
+// --- Shop (ersetzt das alte Schlüssel-/Mystery-Box-System) ---------------
+function openShopScreen() {
+  showScreen("screen-shop");
+  renderShop(profile, listBoxes(), handleBuyBox);
+}
+
+function handleBuyBox(boxId) {
+  audio.sfx("click");
+  const result = purchaseBox(profile, boxId, Math.random);
+  saveProfile(profile);
+  renderProfileSummary(profile);
+  playBoxOpeningAnimation(result).then(() => {
+    renderShop(profile, listBoxes(), handleBuyBox);
+    renderProfileSummary(profile);
+    renderSkinBadge(profile.equippedSkin ?? "mario");
+  });
 }
 
 document.addEventListener("DOMContentLoaded", () => {
-  el("#btn-play").addEventListener("click", () => { audio.sfx("click"); showScreen("screen-difficulty"); });
-  document.querySelectorAll("[data-difficulty]").forEach((btn) => {
+  // --- SOLO: Minispiel -> Schwierigkeit -> Start -------------------------
+  el("#btn-play").addEventListener("click", () => { audio.sfx("click"); arcadeController.openHome(); });
+  document.querySelectorAll("[data-arcade-difficulty]").forEach((btn) => {
     btn.addEventListener("click", () => {
       audio.sfx("click");
-      pendingDifficulty = btn.dataset.difficulty;
-      showScreen("screen-saboteur");
+      if (!pendingArcadeGameId) return;
+      arcadeController.openGame(pendingArcadeGameId, btn.dataset.arcadeDifficulty);
     });
   });
-  document.querySelectorAll("[data-saboteur]").forEach((btn) => {
-    btn.addEventListener("click", () => { audio.sfx("click"); startSoloRun(pendingDifficulty, btn.dataset.saboteur); });
-  });
-  el("#btn-play-again").addEventListener("click", () => { audio.sfx("click"); resetToMenu(); });
 
   el("#btn-daily").addEventListener("click", () => { audio.sfx("click"); openDailyScreen(); });
   el("#btn-daily-claim").addEventListener("click", () => {
@@ -275,20 +105,7 @@ document.addEventListener("DOMContentLoaded", () => {
   });
 
   el("#btn-missions").addEventListener("click", () => { audio.sfx("click"); openMissionsScreen(); });
-
-  el("#btn-arcade").addEventListener("click", () => { audio.sfx("click"); arcadeController.openHome(); });
-
-  el("#btn-mysterybox").addEventListener("click", () => { audio.sfx("click"); openMysteryBoxScreen(); });
-  el("#btn-mysterybox-open").addEventListener("click", () => {
-    const result = openMysteryBox(profile, Math.random);
-    saveProfile(profile);
-    playBoxOpeningAnimation(result).then(() => {
-      renderMysteryBoxResult(result);
-      renderMysteryBoxStatus(profile);
-      renderProfileSummary(profile);
-      renderSkinBadge(profile.equippedSkin ?? "mario");
-    });
-  });
+  el("#btn-shop").addEventListener("click", () => { audio.sfx("click"); openShopScreen(); });
 
   el("#btn-settings").addEventListener("click", () => { audio.sfx("click"); openSettingsScreen(); });
 
@@ -322,13 +139,14 @@ document.addEventListener("DOMContentLoaded", () => {
     btn.addEventListener("click", () => { audio.sfx("click"); showScreen(btn.dataset.back); });
   });
 
+  // --- ONLINE --------------------------------------------------------------
   el("#btn-online").addEventListener("click", () => { audio.sfx("click"); showScreen("screen-online-choice"); });
 
   el("#btn-online-create").addEventListener("click", () => {
     audio.sfx("click");
     setupSocketHandlers();
     ensureConnected()
-      .then(() => socket.send("createRoom", { name: "Du", skinId: (profile.equippedSkin ?? getStarterSkin().id) }))
+      .then(() => socket.send("createRoom", { name: myOnlineName, skinId: (profile.equippedSkin ?? getStarterSkin().id) }))
       .catch(() => alert("Verbindung zum Server fehlgeschlagen. Server erreichbar?"));
   });
 
@@ -341,7 +159,7 @@ document.addEventListener("DOMContentLoaded", () => {
     if (!code) return;
     setupSocketHandlers();
     ensureConnected()
-      .then(() => socket.send("joinRoom", { code, name: "Du", skinId: (profile.equippedSkin ?? getStarterSkin().id) }))
+      .then(() => socket.send("joinRoom", { code, name: myOnlineName, skinId: (profile.equippedSkin ?? getStarterSkin().id) }))
       .catch(() => alert("Verbindung zum Server fehlgeschlagen. Server erreichbar?"));
   });
 
@@ -354,19 +172,21 @@ document.addEventListener("DOMContentLoaded", () => {
   });
   el("#btn-lobby-start").addEventListener("click", () => {
     audio.sfx("click");
-    socket.send("updateSettings", {
-      difficulty: el("#lobby-difficulty").value,
-      botCount: Number(el("#lobby-bots").value),
-      saboteurPreset: el("#lobby-saboteur").value,
-    });
+    socket.send("updateSettings", { gameId: el("#lobby-game").value });
     socket.send("startGame");
   });
 
+  populateLobbyGameSelect();
   renderSkinBadge((profile.equippedSkin ?? getStarterSkin().id));
   renderProfileSummary(profile);
   applySettingsToAudio();
   audio.playMood("menu");
 });
+
+function populateLobbyGameSelect() {
+  const select = el("#lobby-game");
+  select.innerHTML = ARCADE_GAMES.map((g) => `<option value="${g.id}">${g.icon} ${g.name}</option>`).join("");
+}
 
 function applySettingsToAudio() {
   if (!profile.settings) {
@@ -453,14 +273,30 @@ function startLockerPreviewLoop() {
 }
 
 // ===== Online-Multiplayer =====
+// Seit der Umstellung: keine Türen mehr - alle Spieler einer Lobby bekommen
+// dasselbe Minispiel (gleicher Seed vom Server) und werden danach per
+// Punktestand verglichen (Rangliste statt Sieg/Niederlage).
 let myPlayerId = null;
 let iAmHost = false;
-let lastExitAvailable = false;
 let socketHandlersReady = false;
+let onlineActiveGame = null;
 
 function ensureConnected() {
   if (socket.connected) return Promise.resolve();
   return socket.connect(SERVER_URL);
+}
+
+// Kleiner seedbarer PRNG (mulberry32), damit alle Spieler exakt dasselbe
+// Muster sehen (z.B. dieselben Obstkorb-Fruchtpositionen) - fair, weil
+// niemand einen zufällig leichteren Ablauf bekommt.
+function makeSeededRng(seed) {
+  let a = seed >>> 0;
+  return function () {
+    a |= 0; a = (a + 0x6d2b79f5) | 0;
+    let t = Math.imul(a ^ (a >>> 15), 1 | a);
+    t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t;
+    return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
+  };
 }
 
 function setupSocketHandlers() {
@@ -485,39 +321,9 @@ function setupSocketHandlers() {
     errBox.textContent = payload.message;
     errBox.classList.remove("hidden");
   });
-  socket.on("gameStarted", ({ state, doors }) => {
-    audio.playMood("normal");
-    showScreen("screen-online-game");
-    hideOnlineOutcome();
-    hideOnlineDecision();
-    renderOnlinePlayers(state.players);
-    renderOnlineDoors(doors);
-  });
-  socket.on("nextDoors", ({ doors, exitAvailable }) => {
-    lastExitAvailable = exitAvailable;
-    hideOnlineOutcome();
-    hideOnlineDecision();
-    renderOnlineDoors(doors);
-  });
-  socket.on("minigameStarted", ({ doorId, type, challenge }) => {
-    el("#online-doors").innerHTML = "";
-    if (type === "reactionGame") startOnlineReactionMinigame(doorId, challenge);
-  });
-  socket.on("roomResolved", ({ outcome, state, botReactions }) => {
-    renderOnlinePlayers(state.players);
-    renderOnlineOutcome(outcome);
-    el("#online-doors").innerHTML = "";
-    renderOnlineBotFeed(botReactions);
-    if (outcome.kind === "reward") audio.sfx("treasure");
-    else if (outcome.kind === "danger") { audio.sfx("damage"); audio.playMood("danger"); }
-    setTimeout(() => renderOnlineDecision(lastExitAvailable), 250);
-  });
-  socket.on("gameEnded", ({ state, reveal }) => {
-    audio.stopMusic();
-    renderOnlineEnd(state, reveal);
-  });
+  socket.on("roundStarted", ({ gameId, seed }) => startOnlineRound(gameId, seed));
+  socket.on("roundResults", ({ results }) => renderOnlineResult(results));
   socket.on("_disconnected", () => {
-    // Einfache Behandlung: zurück ins Menü, keine automatische Wiederverbindung in v1
     if (el("#screen-lobby") && !el("#screen-lobby").classList.contains("hidden")) {
       resetToMenu();
     }
@@ -532,79 +338,105 @@ function renderLobby(state) {
     .map((p) => `<div class="lobby-player-row"><span>${p.name}${p.isHost ? " <em class=\"host-tag\">Host</em>" : ""}</span><span class="${p.ready ? "ready-dot" : "not-ready-dot"}">${p.ready ? "● bereit" : "○ wartet"}</span></div>`)
     .join("");
   el("#lobby-host-settings").classList.toggle("hidden", !iAmHost);
+  if (state.settings?.gameId) el("#lobby-game").value = state.settings.gameId;
 }
 
-function renderOnlinePlayers(players) {
-  el("#online-players-hud").innerHTML = players
-    .map((p) => `
-      <div class="online-player-chip ${p.alive ? "" : "online-player-chip--dead"}">
-        <div>${p.name}</div>
-        <div class="op-hpbar"><div style="width:${p.hp}%"></div></div>
-        <div>${p.securedCoins} Münzen<br><span class="risk-label">+${p.riskCoins} riskiert</span></div>
+function startOnlineRound(gameId, seed) {
+  const meta = getArcadeGame(gameId);
+  showScreen("screen-online-game");
+  el("#online-play-title").textContent = meta ? `${meta.icon} ${meta.name}` : "";
+  el("#online-score").textContent = "0";
+  el("#online-combo").classList.add("hidden");
+  el("#online-timer-fill").style.width = "100%";
+  el("#online-waiting").classList.add("hidden");
+  const stage = el("#online-stage");
+  stage.innerHTML = "";
+  stage.classList.remove("hidden");
+
+  meta.load().then((mod) => {
+    onlineActiveGame = mod.start({
+      container: stage,
+      skinId: profile.equippedSkin ?? "mario",
+      rng: makeSeededRng(seed),
+      onHud: updateOnlineHud,
+      onEnd: (result) => finishOnlineRound(result),
+    });
+  });
+}
+
+function updateOnlineHud(patch) {
+  if (patch.score !== undefined) el("#online-score").textContent = String(patch.score);
+  if (patch.combo !== undefined) {
+    const badge = el("#online-combo");
+    if (patch.combo >= 2) { badge.textContent = `x${patch.combo}`; badge.classList.remove("hidden"); }
+    else badge.classList.add("hidden");
+  }
+  if (patch.total) {
+    const frac = patch.roundTotal ? patch.round / patch.roundTotal : 1 - patch.timeLeft / patch.total;
+    el("#online-timer-fill").style.width = `${Math.round(Math.min(1, Math.max(0, frac)) * 100)}%`;
+  }
+}
+
+function finishOnlineRound(result) {
+  onlineActiveGame = null;
+  el("#online-stage").classList.add("hidden");
+  el("#online-waiting-score").textContent = result.resultLabel ?? `${result.score} PUNKTE`;
+  el("#online-waiting").classList.remove("hidden");
+  audio.sfx("treasure");
+  socket.send("submitScore", { score: result.score });
+}
+
+function renderOnlineResult(results) {
+  const me = results.find((r) => r.id === myPlayerId);
+  const box = el("#online-leaderboard");
+  box.innerHTML = results
+    .map((r, i) => `
+      <div class="online-leaderboard-row ${i === 0 ? "online-leaderboard-row--first" : ""} ${r.id === myPlayerId ? "online-leaderboard-row--me" : ""}">
+        <span class="online-leaderboard-rank">${i === 0 ? "🏆" : `#${i + 1}`}</span>
+        <span class="online-leaderboard-name">${r.name}${r.id === myPlayerId ? " (Du)" : ""}</span>
+        <span class="online-leaderboard-score">${r.score}</span>
       </div>
     `).join("");
-}
 
-function renderOnlineDoors(doors) {
-  const wrap = el("#online-doors");
-  wrap.innerHTML = "";
-  doors.forEach((door) => {
-    const btn = document.createElement("button");
-    btn.className = `door door--${door.shownHint}`;
-    btn.innerHTML = `<span class="door__icon"></span><span class="door__label">Tür ${door.id + 1}</span>`;
-    btn.addEventListener("click", () => { audio.sfx("doorOpen"); socket.send("chooseDoor", { doorId: door.id }); });
-    wrap.appendChild(btn);
-  });
-}
-
-function renderOnlineOutcome(outcome) {
-  const box = el("#online-outcome");
-  box.textContent = outcome.message;
-  box.className = `outcome outcome--${outcome.kind}`;
-}
-function hideOnlineOutcome() { el("#online-outcome").className = "outcome outcome--hidden"; }
-
-function renderOnlineBotFeed(entries) {
-  const box = el("#online-bot-feed");
-  (entries ?? []).forEach(({ botName, comment }) => {
-    const line = document.createElement("div");
-    line.className = "bot-line";
-    line.textContent = `${botName}: „${comment}"`;
-    box.prepend(line);
-  });
-  while (box.children.length > 4) box.removeChild(box.lastChild);
-}
-
-function renderOnlineDecision(exitAvailable) {
-  const box = el("#online-decision");
-  box.innerHTML = "";
-  if (exitAvailable) {
-    const fleeBtn = document.createElement("button");
-    fleeBtn.className = "btn btn--flee";
-    fleeBtn.textContent = "FLIEHEN (für alle)";
-    fleeBtn.addEventListener("click", () => { audio.sfx("flee"); socket.send("flee"); });
-    box.appendChild(fleeBtn);
+  // Eigene Münzen/XP fürs Ergebnis der Online-Runde gutschreiben (kleiner,
+  // pauschaler Bonus - die Feinabstimmung passiert weiterhin im SOLO-Modus).
+  if (me) {
+    const placement = results.findIndex((r) => r.id === myPlayerId);
+    const bonus = placement === 0 ? 40 : placement === 1 ? 25 : placement === 2 ? 15 : 8;
+    grantCoins(profile, bonus);
+    saveProfile(profile);
+    renderProfileSummary(profile);
   }
-  box.classList.remove("hidden");
-}
-function hideOnlineDecision() { el("#online-decision").classList.add("hidden"); el("#online-decision").innerHTML = ""; }
 
-function startOnlineReactionMinigame(doorId, challenge) {
-  runReactionMinigamePresentation(challenge, (reactionMs) => {
-    socket.send("submitMinigameResult", { doorId, reactionMs });
-  });
-}
-
-function renderOnlineEnd(state, reveal) {
-  el("#end-title").textContent = state.result === "fled" ? "ENTKOMMEN!" : "GEFANGEN...";
-  el("#end-title").className = state.result === "fled" ? "end-title win" : "end-title lose";
-  el("#end-summary").textContent = `Gemeinsam ${state.roomsCleared} Räume geschafft.`;
-  const saboBox = el("#end-saboteur");
-  if (reveal && reveal.hadSaboteur) {
-    saboBox.textContent = `Der Saboteur war ${reveal.botName}! Aufgabe „${reveal.task.label}" wurde ${reveal.success ? "ERFÜLLT" : "NICHT erfüllt"}.`;
-    saboBox.classList.remove("hidden");
+  const actions = el("#online-result-actions");
+  actions.innerHTML = "";
+  if (iAmHost) {
+    const again = document.createElement("button");
+    again.className = "btn btn--primary";
+    again.textContent = "NÄCHSTE RUNDE";
+    again.addEventListener("click", () => { audio.sfx("click"); showScreen("screen-lobby"); });
+    actions.appendChild(again);
   } else {
-    saboBox.classList.add("hidden");
+    const waitInfo = document.createElement("p");
+    waitInfo.className = "arcade-subtitle";
+    waitInfo.textContent = "Warte, bis der Host die nächste Runde startet …";
+    actions.appendChild(waitInfo);
+    const backBtn = document.createElement("button");
+    backBtn.className = "btn btn--secondary";
+    backBtn.textContent = "Zur Lobby";
+    backBtn.addEventListener("click", () => { audio.sfx("click"); showScreen("screen-lobby"); });
+    actions.appendChild(backBtn);
   }
-  showScreen("screen-end");
+  const leaveBtn = document.createElement("button");
+  leaveBtn.className = "btn btn--ghost";
+  leaveBtn.textContent = "Verlassen";
+  leaveBtn.addEventListener("click", () => {
+    audio.sfx("click");
+    socket.send("leaveRoom");
+    socket.disconnect();
+    resetToMenu();
+  });
+  actions.appendChild(leaveBtn);
+
+  showScreen("screen-online-result");
 }
