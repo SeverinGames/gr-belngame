@@ -38,7 +38,7 @@ const { chromium } = require('playwright');
   await page.waitForTimeout(150);
   const cardCount = await page.locator('.arcade-card').count();
   console.log('Anzahl Minispiel-Karten (SOLO):', cardCount);
-  if (cardCount !== 8) errors.push(`Erwartet 8 Minispiel-Karten, gefunden ${cardCount}`);
+  if (cardCount !== 10) errors.push(`Erwartet 8 Minispiel-Karten, gefunden ${cardCount}`);
 
   await page.locator('.arcade-card').filter({ hasText: 'Color Trick' }).click();
   await page.waitForTimeout(200);
@@ -63,7 +63,7 @@ const { chromium } = require('playwright');
   const resultVisible = await page.locator('#arcade-result').isVisible();
   console.log('SOLO Ergebnis-Screen sichtbar:', resultVisible);
   if (!resultVisible) errors.push('Color Trick zeigt keinen Ergebnis-Screen');
-  const tierText = await page.locator('.arcade-result__tier').textContent().catch(() => null);
+  const tierText = await page.locator('#arcade-result .arcade-result__tier').textContent().catch(() => null);
   const diffText = await page.locator('.arcade-result__difficulty').textContent().catch(() => null);
   console.log('Belohnungsstufe:', tierText, '| Schwierigkeit-Label:', diffText);
   if (!diffText || !diffText.includes('Schwer')) errors.push('Schwierigkeit "Schwer" wird im Ergebnis nicht angezeigt');

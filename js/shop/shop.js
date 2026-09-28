@@ -65,6 +65,19 @@ export function purchaseBox(profile, boxId, rng = Math.random) {
   if (profile.coins < def.price) return { success: false, reason: "not-enough-coins" };
 
   profile.coins -= def.price;
+  return openBoxInternal(profile, boxId, rng, def.price);
+}
+
+// Kostenlose Box-Öffnung (z.B. Jackpot-Tag der täglichen Belohnung) - exakt
+// dieselbe Drop-Logik wie ein Kauf, nur ohne Münzabzug.
+export function grantFreeBox(profile, boxId, rng = Math.random) {
+  const def = BOX_DEFS[boxId];
+  if (!def) return { success: false, reason: "unknown-box" };
+  return openBoxInternal(profile, boxId, rng, def.price);
+}
+
+function openBoxInternal(profile, boxId, rng, referencePrice) {
+  const def = BOX_DEFS[boxId];
   profile.stats.boxesOpened = (profile.stats.boxesOpened ?? 0) + 1;
 
   const table = getDropTable(boxId);
@@ -78,7 +91,7 @@ export function purchaseBox(profile, boxId, rng = Math.random) {
 
   const isNew = unlockSkin(profile, picked.id);
   // Duplikat wird in kleine Münzentschädigung umgewandelt (kein Feature-Loch)
-  const compensationCoins = isNew ? 0 : Math.round(def.price * 0.12 * (RARITY[picked.rarity].particles + 1));
+  const compensationCoins = isNew ? 0 : Math.round(referencePrice * 0.12 * (RARITY[picked.rarity].particles + 1));
   if (!isNew) {
     profile.coins += compensationCoins;
     profile.stats.coinsEverEarned += compensationCoins;

@@ -59,6 +59,20 @@ export const ARCADE_GAMES = [
     tagline: "Nur ein Button ist der richtige - immer wieder!",
     load: () => import("./games/quickFinger.js"),
   },
+  {
+    id: "meteorDash",
+    name: "Meteor Dash",
+    icon: "☄️",
+    tagline: "Weiche Meteoriten aus und sammle Sterne - 3 Leben!",
+    load: () => import("./games/meteorDash.js"),
+  },
+  {
+    id: "treasurePaths",
+    name: "Schatzpfade",
+    icon: "💰",
+    tagline: "Merk dir den Schatz, bevor die Kisten sich schließen!",
+    load: () => import("./games/treasurePaths.js"),
+  },
 ];
 
 export function getArcadeGame(id) {

@@ -78,9 +78,12 @@ export function start({ container, skinId, rng, onHud, onEnd }) {
     optionsEl.innerHTML = "";
     pool.forEach((w) => {
       const btn = document.createElement("button");
+      // WICHTIG: kein farbiger Rahmen/Hintergrund pro Option mehr - alle drei
+      // Buttons sind optisch identisch, nur der Text nennt die Farbe. Das
+      // Erkennen der richtigen Farbe darf nicht durch die Buttons selbst
+      // verraten werden.
       btn.className = "ct-option";
       btn.textContent = w.label;
-      btn.style.borderColor = w.hex;
       btn.addEventListener("click", () => choose(w.id === target.id, btn));
       optionsEl.appendChild(btn);
     });

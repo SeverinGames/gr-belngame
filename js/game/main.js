@@ -6,12 +6,13 @@
 import { getStarterSkin, getSkinById, SKINS, RARITY } from "../skins/skins.js";
 import {
   renderSkinBadge, renderProfileSummary, renderMissions, renderDailyStatus,
-  renderShop, showScreen,
+  renderDailyClaimed, renderShop, showScreen,
 } from "../ui/ui.js";
-import { loadProfile, saveProfile, grantCoins } from "../rewards/profile.js";
-import { canClaimDaily, claimDaily } from "../rewards/dailyReward.js";
+import { loadProfile, saveProfile, grantCoins, grantRewards } from "../rewards/profile.js";
+import { canClaimDaily, claimDaily, describeReward, previewReward } from "../rewards/dailyReward.js";
 import { listMissionProgress, claimMission } from "../missions/missions.js";
-import { listBoxes, purchaseBox } from "../shop/shop.js";
+import { listBoxes, purchaseBox, grantFreeBox } from "../shop/shop.js";
+import { redeemCreatorCode } from "../shop/creatorCodes.js";
 import { playBoxOpeningAnimation } from "../rewards/boxAnimation.js";
 import { createArcadeController } from "../arcade/controller.js";
 import { ARCADE_GAMES, getArcadeGame } from "../arcade/registry.js";
@@ -52,7 +53,8 @@ function resetToMenu() {
 
 function openDailyScreen() {
   showScreen("screen-daily");
-  renderDailyStatus(canClaimDaily(profile), profile.dailyReward.streakDay);
+  const preview = previewReward(profile);
+  renderDailyStatus(canClaimDaily(profile), profile.dailyReward.streakDay, preview.streakDay, preview.text);
 }
 
 function openMissionsScreen() {
@@ -61,16 +63,26 @@ function openMissionsScreen() {
 }
 
 function handleClaimMission(missionId) {
-  claimMission(profile, missionId);
+  const res = claimMission(profile, missionId, { grantRewards, grantFreeBox });
+  if (!res.success) return;
   saveProfile(profile);
+  audio.sfx("unlockRare");
   renderMissions(listMissionProgress(profile), handleClaimMission);
   renderProfileSummary(profile);
+  if (res.boxResult) {
+    playBoxOpeningAnimation(res.boxResult).then(() => {
+      renderProfileSummary(profile);
+      renderSkinBadge(profile.equippedSkin ?? "mario");
+    });
+  }
 }
 
 // --- Shop (ersetzt das alte Schlüssel-/Mystery-Box-System) ---------------
 function openShopScreen() {
   showScreen("screen-shop");
   renderShop(profile, listBoxes(), handleBuyBox);
+  el("#creator-code-message").classList.add("hidden");
+  el("#creator-code-input").value = "";
 }
 
 function handleBuyBox(boxId) {
@@ -83,6 +95,36 @@ function handleBuyBox(boxId) {
     renderProfileSummary(profile);
     renderSkinBadge(profile.equippedSkin ?? "mario");
   });
+}
+
+function handleRedeemCreatorCode() {
+  audio.sfx("click");
+  const input = el("#creator-code-input");
+  const msg = el("#creator-code-message");
+  const res = redeemCreatorCode(profile, input.value, (code) => {
+    // Rein statistisch, best-effort - schlägt die Verbindung fehl, bleibt
+    // die lokale Einlösung trotzdem gültig (siehe creatorCodes.js).
+    ensureConnected().then(() => socket.send("redeemCode", { code })).catch(() => {});
+  });
+
+  msg.classList.remove("hidden", "creator-code-message--success", "creator-code-message--error");
+  if (res.success) {
+    saveProfile(profile);
+    audio.sfx("unlockRare");
+    renderProfileSummary(profile);
+    msg.textContent = `Creator Code ${res.label} aktiviert! +${res.reward.coins} Münzen`;
+    msg.classList.add("creator-code-message--success");
+    input.value = "";
+  } else if (res.reason === "already-redeemed") {
+    msg.textContent = `Creator Code ${res.label} wurde bereits eingelöst.`;
+    msg.classList.add("creator-code-message--error");
+  } else if (res.reason === "invalid") {
+    msg.textContent = "Ungültiger Creator Code.";
+    msg.classList.add("creator-code-message--error");
+  } else {
+    msg.textContent = "Bitte einen Creator Code eingeben.";
+    msg.classList.add("creator-code-message--error");
+  }
 }
 
 document.addEventListener("DOMContentLoaded", () => {
@@ -99,13 +141,31 @@ document.addEventListener("DOMContentLoaded", () => {
   el("#btn-daily").addEventListener("click", () => { audio.sfx("click"); openDailyScreen(); });
   el("#btn-daily-claim").addEventListener("click", () => {
     const res = claimDaily(profile);
-    if (res.success) { saveProfile(profile); audio.sfx("unlockRare"); }
-    renderDailyStatus(canClaimDaily(profile), profile.dailyReward.streakDay);
+    if (!res.success) return; // Button ist ohnehin disabled, wenn schon abgeholt
+    saveProfile(profile);
+    audio.sfx("unlockRare");
     renderProfileSummary(profile);
+    renderDailyStatus(false, res.streakDay, res.streakDay, ""); // Button sperren, Vorschau ausblenden
+
+    if (res.reward.type === "box") {
+      // Gratis-Box (Jackpot-Tag) - tatsächlich öffnen und die echte
+      // Öffnungsanimation zeigen, damit die Belohnung sichtbar ankommt.
+      const boxResult = grantFreeBox(profile, res.reward.boxId, Math.random);
+      saveProfile(profile);
+      playBoxOpeningAnimation(boxResult).then(() => {
+        renderDailyClaimed(describeReward(res.reward) + (boxResult.isNew ? ` (${boxResult.skin.name})` : ` - Duplikat, +${boxResult.compensationCoins} 🪙`), res.streakDay);
+        renderProfileSummary(profile);
+        renderSkinBadge(profile.equippedSkin ?? "mario");
+      });
+    } else {
+      renderDailyClaimed(describeReward(res.reward), res.streakDay);
+    }
   });
 
   el("#btn-missions").addEventListener("click", () => { audio.sfx("click"); openMissionsScreen(); });
   el("#btn-shop").addEventListener("click", () => { audio.sfx("click"); openShopScreen(); });
+  el("#btn-creator-code-redeem").addEventListener("click", handleRedeemCreatorCode);
+  el("#creator-code-input").addEventListener("keydown", (e) => { if (e.key === "Enter") handleRedeemCreatorCode(); });
 
   el("#btn-settings").addEventListener("click", () => { audio.sfx("click"); openSettingsScreen(); });
 

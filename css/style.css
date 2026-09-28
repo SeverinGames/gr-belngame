@@ -87,6 +87,46 @@ body {
   margin-bottom: 24px;
 }
 
+/* --- Hero-Bereich der Startseite (Punkt 8: modernerer, "game-artiger" Auftritt) --- */
+.hero {
+  position: relative;
+  text-align: center;
+  padding: 8px 0 4px;
+  overflow: visible;
+}
+.hero__glow {
+  position: absolute;
+  width: 220px; height: 220px;
+  border-radius: 50%;
+  filter: blur(10px);
+  opacity: 0.55;
+  z-index: 0;
+  pointer-events: none;
+  animation: heroGlowFloat 7s ease-in-out infinite;
+}
+.hero__glow--a { top: -30px; left: 8%; background: radial-gradient(circle, var(--pink), transparent 70%); }
+.hero__glow--b { top: 40px; right: 4%; background: radial-gradient(circle, var(--accent), transparent 70%); animation-delay: -3.5s; }
+@keyframes heroGlowFloat {
+  0%, 100% { transform: translateY(0) scale(1); }
+  50% { transform: translateY(14px) scale(1.08); }
+}
+.hero-skin-preview {
+  position: relative;
+  z-index: 1;
+  width: 96px;
+  height: 96px;
+  margin: 4px auto 10px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  animation: heroAvatarFloat 3.2s ease-in-out infinite;
+}
+.hero-skin-preview--glow { filter: drop-shadow(0 0 18px var(--rarity-color, var(--accent))); }
+@keyframes heroAvatarFloat {
+  0%, 100% { transform: translateY(0); }
+  50% { transform: translateY(-8px); }
+}
+
 .btn {
   display: block;
   width: 100%;
@@ -126,6 +166,18 @@ body {
 .screen { display: flex; flex-direction: column; flex: 1; }
 
 .profile-summary { text-align: center; color: var(--text-dim); font-size: 0.85rem; margin-bottom: 20px; }
+
+.daily-claimed-banner {
+  text-align: center;
+  background: rgba(78,227,154,0.15);
+  border: 1px solid var(--safe);
+  color: var(--safe);
+  border-radius: 12px;
+  padding: 12px;
+  font-weight: 700;
+  margin-top: 8px;
+  animation: arcadeResultIn 0.35s ease-out;
+}
 
 .mission-row {
   background: var(--panel);
@@ -493,6 +545,8 @@ body {
 .mm-playfield { display: flex; flex-direction: column; align-items: center; gap: 14px; height: 100%; padding: 10px; }
 .mm-avatar-row { display: flex; justify-content: center; }
 .mm-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 8px; width: 100%; max-width: 340px; }
+.mm-grid--wide { gap: 6px; max-width: 360px; }
+.mm-grid--wide .mm-card__back, .mm-grid--wide .mm-card__front { font-size: 1.3rem; }
 .mm-card { position: relative; aspect-ratio: 1; perspective: 600px; background: none; border: none; padding: 0; cursor: pointer; }
 .mm-card__back, .mm-card__front {
   position: absolute; inset: 0;
@@ -660,6 +714,27 @@ body {
 .shop-card__buy:active { transform: scale(0.94); }
 .shop-card__buy:disabled { opacity: 0.4; cursor: not-allowed; }
 
+.creator-code-box {
+  background: var(--panel-2);
+  border: 1px solid #2a3150;
+  border-radius: var(--radius-lg);
+  padding: 16px;
+  margin-bottom: 16px;
+}
+.creator-code-box h3 { margin: 0 0 10px; font-size: 1rem; text-align: center; }
+.creator-code-row { display: flex; gap: 8px; }
+.creator-code-row .text-input { flex: 1; margin: 0; }
+.creator-code-row .btn { width: auto; margin: 0; padding: 12px 16px; }
+.creator-code-message {
+  margin: 10px 0 0;
+  font-size: 0.85rem;
+  text-align: center;
+  padding: 8px;
+  border-radius: 8px;
+}
+.creator-code-message--success { background: rgba(78,227,154,0.15); color: var(--safe); }
+.creator-code-message--error { background: rgba(255,84,112,0.15); color: var(--danger); }
+
 /* =========================================================================
    ONLINE-RANGLISTE (ersetzt den alten Türen-Endbildschirm)
    ========================================================================= */
@@ -680,3 +755,32 @@ body {
 .online-leaderboard-name { flex: 1; font-weight: 700; }
 .online-leaderboard-score { font-weight: 800; color: var(--accent-warm); }
 .online-result-actions { display: flex; flex-direction: column; gap: 8px; margin-top: 8px; }
+
+/* --- Meteor Dash (neues Minispiel: Ausweichen + Einsammeln, echtes Game Over) --- */
+.md-playfield { position: absolute; inset: 0; overflow: hidden; background: linear-gradient(180deg, #171b2e, #0a0c14); }
+.md-lives { position: absolute; top: 8px; left: 8px; z-index: 15; font-size: 1rem; letter-spacing: 2px; }
+.md-ship { position: absolute; bottom: 4px; z-index: 10; transition: left 0.03s linear; }
+.md-object { position: absolute; font-size: 1.9rem; transform: translate(-50%, -50%); filter: drop-shadow(0 4px 6px rgba(0,0,0,0.4)); }
+.md-object--meteor { filter: drop-shadow(0 0 8px rgba(255,84,112,0.6)); }
+.md-object--goldstar { filter: drop-shadow(0 0 10px #ffd166); }
+
+/* --- Schatzpfade (neues Minispiel: Entscheidung unter Zeitdruck, echtes Game Over) --- */
+.tp-playfield { display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 14px; height: 100%; padding: 10px; position: relative; }
+.tp-avatar-row { display: flex; justify-content: center; }
+.tp-lives { font-size: 1rem; letter-spacing: 2px; }
+.tp-hint { font-weight: 800; font-size: 1.05rem; color: var(--text-dim); text-align: center; }
+.tp-chests { display: flex; gap: 10px; justify-content: center; flex-wrap: wrap; }
+.tp-chest {
+  width: 64px; height: 64px;
+  border-radius: 14px;
+  border: 2px solid #2a3150;
+  background: var(--panel-2);
+  font-size: 1.8rem;
+  display: flex; align-items: center; justify-content: center;
+  cursor: pointer;
+  transition: transform 0.1s ease;
+}
+.tp-chest:active { transform: scale(0.92); }
+.tp-chest--peek { border-color: var(--accent-warm); box-shadow: 0 0 14px rgba(255,176,32,0.35); }
+.tp-chest--right { background: rgba(78,227,154,0.25); border-color: var(--safe); }
+.tp-chest--wrong { background: rgba(255,84,112,0.25); border-color: var(--danger); }

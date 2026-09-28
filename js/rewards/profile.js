@@ -27,7 +27,15 @@ function defaultProfile() {
       distinctGamesPlayed: 0,
       highscoresAchieved: 0,
       boxesOpened: 0,
+      goodRoundStreak: 0,
+      distinctDaysPlayed: 0,
     },
+    // Zuletzt gespielter Kalendertag (YYYY-MM-DD) - Grundlage für die
+    // "an mehreren Tagen spielen"-Mission, ohne ein Datumsarray zu speichern.
+    lastPlayedDay: null,
+    // Bereits eingelöste Creator-Codes (rein lokal pro Profil/Browser - siehe
+    // js/shop/creatorCodes.js für die globale, serverseitige Nutzungsstatistik).
+    redeemedCodes: [],
     // Welche Minispiel-IDs schon mindestens einmal gespielt wurden (für die
     // "Spiele 5 verschiedene Minispiele"-Mission; stats.distinctGamesPlayed
     // ist nur die daraus abgeleitete Zahl, damit Missionen generisch bleiben).
@@ -59,6 +67,7 @@ export function loadProfile(storage = safeStorage()) {
       dailyReward: { ...base.dailyReward, ...(parsed.dailyReward ?? {}) },
       arcadeHighscores: { ...base.arcadeHighscores, ...(parsed.arcadeHighscores ?? {}) },
       arcadeGamesPlayed: parsed.arcadeGamesPlayed ?? base.arcadeGamesPlayed,
+      redeemedCodes: parsed.redeemedCodes ?? base.redeemedCodes,
     };
   } catch {
     return defaultProfile();
@@ -90,16 +99,42 @@ function applyLevelUps(profile) {
   return levelUps;
 }
 
+// Generischer Weg, Münzen/XP direkt gutzuschreiben (Missionen, Daily-Reward,
+// Creator-Codes, Online-Platzierungsbonus, ...) - ohne Highscore-/Minispiel-
+// spezifische Logik.
+export function grantRewards(profile, { coins = 0, xp = 0 } = {}) {
+  profile.coins += coins;
+  profile.xp += xp;
+  if (coins > 0) profile.stats.coinsEverEarned += coins;
+  return applyLevelUps(profile);
+}
+
+export function grantCoins(profile, amount) {
+  return grantRewards(profile, { coins: amount });
+}
+
 // Belohnung aus einer Minispiel-Runde einbuchen (SOLO und ONLINE gemeinsam
 // genutzt). gameId/score/maxCombo fließen zusätzlich in die Missionen und
 // den Highscore pro Spiel ein.
-export function applyArcadeRewards(profile, { gameId, xpEarned, coinsEarned, score, maxCombo = 0 }) {
+export function applyArcadeRewards(profile, { gameId, xpEarned, coinsEarned, score, maxCombo = 0, tier = "normal" }) {
   profile.coins += coinsEarned;
   profile.xp += xpEarned;
   profile.stats.arcadeRoundsPlayed = (profile.stats.arcadeRoundsPlayed ?? 0) + 1;
   profile.stats.coinsEverEarned += coinsEarned;
   profile.stats.totalArcadeScore = (profile.stats.totalArcadeScore ?? 0) + Math.max(0, score);
   profile.stats.bestCombo = Math.max(profile.stats.bestCombo ?? 0, maxCombo);
+
+  // "mehrere Runden hintereinander schaffen" - zählt hoch, solange die Runde
+  // mindestens "normal" bewertet wurde, sonst zurück auf 0.
+  profile.stats.goodRoundStreak = tier === "schwach" ? 0 : (profile.stats.goodRoundStreak ?? 0) + 1;
+
+  // "an mehreren Tagen spielen" - Kalendertag-Wechsel erkennen, ohne eine
+  // komplette Historie speichern zu müssen.
+  const todayKey = new Date().toISOString().slice(0, 10);
+  if (profile.lastPlayedDay !== todayKey) {
+    profile.lastPlayedDay = todayKey;
+    profile.stats.distinctDaysPlayed = (profile.stats.distinctDaysPlayed ?? 0) + 1;
+  }
 
   if (!profile.arcadeGamesPlayed.includes(gameId)) {
     profile.arcadeGamesPlayed.push(gameId);
@@ -115,14 +150,6 @@ export function applyArcadeRewards(profile, { gameId, xpEarned, coinsEarned, sco
 
   const levelUps = applyLevelUps(profile);
   return { profile, levelUps, isNewHighscore, previousBest };
-}
-
-// Münzen aus der täglichen Belohnung / Missionen direkt einbuchen (ohne
-// Highscore-/Minispiel-Logik).
-export function grantCoins(profile, amount) {
-  profile.coins += amount;
-  profile.stats.coinsEverEarned += Math.max(0, amount);
-  return applyLevelUps(profile);
 }
 
 export function unlockSkin(profile, skinId) {

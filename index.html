@@ -15,10 +15,15 @@
   <div id="app">
 
     <section id="screen-menu" class="screen">
-      <div class="logo logo--party">BIG SEVIS<span class="logo__sub">MINISPIEL PARTY</span></div>
-      <p class="tagline">Willkommen in der Big Sevis Minispiel Party – welches Spiel wagst du?</p>
-      <div id="skin-badge" class="skin-badge"></div>
-      <div id="profile-summary" class="profile-summary"></div>
+      <div class="hero">
+        <div class="hero__glow hero__glow--a"></div>
+        <div class="hero__glow hero__glow--b"></div>
+        <div class="logo logo--party">BIG SEVIS<span class="logo__sub">MINISPIEL PARTY</span></div>
+        <p class="tagline">Willkommen in der Big Sevis Minispiel Party – welches Spiel wagst du?</p>
+        <div id="hero-skin-preview" class="hero-skin-preview"></div>
+        <div id="skin-badge" class="skin-badge"></div>
+        <div id="profile-summary" class="profile-summary"></div>
+      </div>
       <button id="btn-play" class="btn btn--arcade">🎮 SOLO</button>
       <button id="btn-online" class="btn btn--primary">🌐 ONLINE</button>
       <div class="menu-grid">
@@ -71,6 +76,16 @@
       <h2>Shop</h2>
       <div id="shop-coins" class="shop-coins">0 🪙</div>
       <div id="shop-box-list" class="shop-box-list"></div>
+
+      <div class="creator-code-box">
+        <h3>Creator Code</h3>
+        <div class="creator-code-row">
+          <input id="creator-code-input" class="text-input" placeholder="Creator Code eingeben..." maxlength="20" autocapitalize="characters" />
+          <button id="btn-creator-code-redeem" class="btn btn--primary">Einlösen</button>
+        </div>
+        <p id="creator-code-message" class="creator-code-message hidden"></p>
+      </div>
+
       <button class="btn btn--secondary" data-back="screen-menu">Zurück</button>
     </section>
 
@@ -163,6 +178,7 @@
       <h2>Tägliche Belohnung</h2>
       <p id="daily-status"></p>
       <button id="btn-daily-claim" class="btn btn--primary">Abholen</button>
+      <p id="daily-claimed-banner" class="daily-claimed-banner hidden"></p>
       <button class="btn btn--secondary" data-back="screen-menu">Zurück</button>
     </section>
 

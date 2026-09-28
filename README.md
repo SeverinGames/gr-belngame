@@ -31,7 +31,8 @@ Dann im Browser: http://localhost:8000 (bzw. der von serve angezeigte Port)
 
 ## Minispiele (`js/arcade/games/`)
 Obstkorb, Balloon Pop, Color Trick, Mini Memory, Reaktion, Star Catcher,
-Stopp bei Grün, Schnellster Finger. Gemeinsames Interface:
+Stopp bei Grün, Schnellster Finger, Meteor Dash (Ausweichen, Leben, Game
+Over), Schatzpfade (Merken + Entscheiden, Leben, Game Over). Gemeinsames Interface:
 `start({ container, skinId, rng, onHud, onEnd }) -> { destroy() }`.
 
 ## Deployment auf Render (Online-Server)
@@ -49,3 +50,19 @@ Stopp bei Grün, Schnellster Finger. Gemeinsames Interface:
   falls jemand die Verbindung verliert - fehlende Spieler zählen dann mit 0
   Punkten.
 - Keine automatische Wiederverbindung bei Verbindungsabbruch.
+
+## Creator Codes
+Im Shop einlösbar: BIGSEVI, LÖNDI (auch LOENDI), BUSCHKA (je +250 Münzen,
+einmal pro Profil/Browser - Sperre lokal im Profil). Jede Einlösung wird
+zusätzlich best-effort an den Server gemeldet und dort gezählt
+(`server/creatorCodeStats.js`, Datei `creator-code-stats.json`).
+
+**Statistik für den Betreiber:** Auf Render die Umgebungsvariable `ADMIN_KEY`
+setzen (langes, geheimes Passwort), dann:
+`https://<dein-server>.onrender.com/admin/creator-codes?key=<ADMIN_KEY>`
+liefert z.B. `{"BIGSEVI": 123}`. Ohne gesetzten `ADMIN_KEY` ist der
+Endpunkt komplett gesperrt. Einschränkung: auf Render Free wird das
+Dateisystem bei jedem Neu-Deploy zurückgesetzt, die Zähler starten dann
+wieder bei 0 (für dauerhafte Zahlen später eine echte Datenbank anbinden).
+Wer offline spielt/der Server nicht erreichbar ist, kann den Code trotzdem
+einlösen - er fehlt dann nur in der globalen Statistik.

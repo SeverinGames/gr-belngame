@@ -74,6 +74,7 @@ export function createArcadeController({ getProfile, saveProfile, showScreen, au
         container: stage,
         skinId: profile.equippedSkin ?? "mario",
         rng,
+        difficulty: currentDifficulty,
         onHud: updateHud,
         onEnd: (result) => finishGame(gameId, result),
       });
@@ -106,7 +107,7 @@ export function createArcadeController({ getProfile, saveProfile, showScreen, au
     const xpEarned = Math.round(tier.xp * diff.rewardMultiplier);
     const coinsEarned = Math.round(tier.coins * diff.rewardMultiplier);
     const { isNewHighscore, levelUps } = applyArcadeRewards(profile, {
-      gameId, xpEarned, coinsEarned, score: result.score, maxCombo: result.maxCombo ?? 0,
+      gameId, xpEarned, coinsEarned, score: result.score, maxCombo: result.maxCombo ?? 0, tier: tier.tier,
     });
     saveProfile(profile);
     renderProfileSummary(profile);

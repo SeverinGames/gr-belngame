@@ -6,8 +6,11 @@
 // Endbildschirm, Bot-Anzeigen) wurde entfernt, weil das Türen-Spiel selbst
 // entfernt wurde.
 import { getSkinById, RARITY } from "../skins/skins.js";
+import { mountSkinAvatar } from "../arcade/engine.js";
 
 const el = (sel) => document.querySelector(sel);
+
+let heroAvatar = null;
 
 export function renderSkinBadge(skinId) {
   const skin = getSkinById(skinId);
@@ -18,6 +21,18 @@ export function renderSkinBadge(skinId) {
   badge.style.borderColor = rarity.color;
   badge.style.color = rarity.color;
   badge.style.boxShadow = rarity.glow ? `0 0 12px ${rarity.color}` : "none";
+
+  // Hero-Vorschau auf der Startseite: dieselbe animierte Figur wie in den
+  // Minispielen, damit der eigene Skin gleich beim Öffnen der Seite präsent
+  // ist (Punkt 8 des Prompts).
+  const heroBox = el("#hero-skin-preview");
+  if (heroBox) {
+    if (heroAvatar) heroAvatar.destroy();
+    heroBox.innerHTML = "";
+    heroAvatar = mountSkinAvatar(heroBox, skinId, { size: 96 });
+    heroBox.style.setProperty("--rarity-color", rarity.color);
+    heroBox.classList.toggle("hero-skin-preview--glow", !!rarity.glow);
+  }
 }
 
 export function renderProfileSummary(profile) {
@@ -50,13 +65,27 @@ export function renderMissions(progressList, onClaim) {
     box.appendChild(row);
   });
 }
-function rewardLabel(def) { return `${def.reward.coins} 🪙`; }
+function rewardLabel(def) {
+  const r = def.reward;
+  if (r.boxId) return "Box";
+  const parts = [];
+  if (r.coins) parts.push(`${r.coins} 🪙`);
+  if (r.xp) parts.push(`${r.xp} XP`);
+  return parts.join(" + ");
+}
 
-export function renderDailyStatus(canClaim, streakDay) {
+export function renderDailyStatus(canClaim, streakDay, nextStreakDay, nextRewardText) {
   el("#daily-status").textContent = canClaim
-    ? "Deine heutige Belohnung wartet!"
+    ? `Tag ${nextStreakDay} von 7 - heute gibt's: ${nextRewardText}`
     : `Schon abgeholt. Aktuelle Serie: Tag ${streakDay}. Komm morgen wieder!`;
   el("#btn-daily-claim").disabled = !canClaim;
+  el("#daily-claimed-banner").classList.add("hidden");
+}
+
+export function renderDailyClaimed(rewardText, streakDay) {
+  const banner = el("#daily-claimed-banner");
+  banner.textContent = `🎉 Du hast ${rewardText} erhalten! (Serie: Tag ${streakDay})`;
+  banner.classList.remove("hidden");
 }
 
 // --- Shop (ersetzt die alte Mystery-Box-mit-Schlüsseln-Anzeige) -----------

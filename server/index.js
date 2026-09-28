@@ -6,13 +6,28 @@
 import { createServer } from "http";
 import { WebSocketServer } from "ws";
 import { PartyMinigameRoom, ROUND_TIMEOUT_MS } from "./partyMinigame.js";
+import { recordRedemption, getCreatorCodeStats } from "./creatorCodeStats.js";
 
 const PORT = process.env.PORT || 3001;
+// Ohne gesetzten ADMIN_KEY ist der Statistik-Endpunkt komplett deaktiviert -
+// bewusst kein offener Zugriff "für alle" (siehe Punkt 7 des Prompts).
+const ADMIN_KEY = process.env.ADMIN_KEY || null;
 
 const httpServer = createServer((req, res) => {
-  if (req.url === "/health") {
+  const url = new URL(req.url, "http://localhost");
+  if (url.pathname === "/health") {
     res.writeHead(200, { "Content-Type": "application/json" });
     res.end(JSON.stringify({ status: "ok", rooms: rooms.size }));
+    return;
+  }
+  if (url.pathname === "/admin/creator-codes") {
+    if (!ADMIN_KEY || url.searchParams.get("key") !== ADMIN_KEY) {
+      res.writeHead(403, { "Content-Type": "application/json" });
+      res.end(JSON.stringify({ error: "Nicht autorisiert." }));
+      return;
+    }
+    res.writeHead(200, { "Content-Type": "application/json" });
+    res.end(JSON.stringify(getCreatorCodeStats(), null, 2));
     return;
   }
   res.writeHead(404);
@@ -62,6 +77,7 @@ wss.on("connection", (ws) => {
         case "startGame": return handleStartGame(ws);
         case "submitScore": return handleSubmitScore(ws, payload);
         case "leaveRoom": return handleLeave(ws);
+        case "redeemCode": return handleRedeemCode(ws, payload);
         default: send(ws, "error", { message: `Unbekannter Nachrichtentyp: ${type}` });
       }
     } catch (err) {
@@ -137,6 +153,15 @@ function finalizeRoom(room) {
   clearTimeout(room.round.timeoutHandle);
   const results = room.finishRound();
   broadcast(room, "roundResults", { results });
+}
+
+// Rein statistisch (Punkt 7 des Prompts) - kein Raum nötig, keine
+// Auswirkung auf das Spiel selbst. Die "schon eingelöst"-Sperre pro Spieler
+// läuft komplett lokal im Profil (js/shop/creatorCodes.js); hier zählen wir
+// nur global mit, wie oft welcher Code insgesamt verwendet wurde, für den
+// geschützten /admin/creator-codes-Endpunkt.
+function handleRedeemCode(ws, { code }) {
+  if (typeof code === "string" && code.trim()) recordRedemption(code.trim().toUpperCase());
 }
 
 function handleLeave(ws) {
