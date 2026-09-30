@@ -1,22 +1,27 @@
 // js/skins/skins.js
 // Datengetriebenes Skin-System. Neue Skins = einfach neuen Eintrag hinzufügen.
-// Rarity-Stufen (aufsteigend): common, superRare, epic, mythic, legendary,
-// superLegendary, exotic, unlimited
+// Rarity-Stufen (aufsteigend): common, rare, superRare, epic, legendary, mythic,
+// superLegendary, exotic, unlimited. (Reihenfolge nur zur Orientierung - die
+// Seltenheit eines Skins ergibt sich allein aus seinem rarity-Eintrag unten.)
 
 export const RARITY = {
-  common:         { label: "Selten",        color: "#8fd3ff", glow: false, particles: 0 },
-  superRare:      { label: "Superselten",   color: "#4fa3ff", glow: false, particles: 1 },
-  epic:           { label: "Episch",        color: "#b06bff", glow: true,  particles: 2 },
-  mythic:         { label: "Mythisch",      color: "#ff6bd6", glow: true,  particles: 3 },
+  common:         { label: "Häufig",        color: "#c9d1e6", glow: false, particles: 0 },
+  rare:           { label: "Selten",        color: "#8fd3ff", glow: false, particles: 1 },
+  superRare:      { label: "Superselten",   color: "#4fa3ff", glow: false, particles: 2 },
+  epic:           { label: "Episch",        color: "#b06bff", glow: true,  particles: 3 },
   legendary:      { label: "Legendär",      color: "#ffb020", glow: true,  particles: 4 },
-  superLegendary: { label: "Superlegendär", color: "#ff7a20", glow: true,  particles: 5 },
-  exotic:         { label: "Exotisch",      color: "#20ffd0", glow: true,  particles: 6 },
-  unlimited:      { label: "Unlimited",     color: "#ffffff", glow: true,  particles: 8 },
+  mythic:         { label: "Mythisch",      color: "#ff6bd6", glow: true,  particles: 5 },
+  superLegendary: { label: "Superlegendär", color: "#ff7a20", glow: true,  particles: 6 },
+  exotic:         { label: "Exotisch",      color: "#20ffd0", glow: true,  particles: 7 },
+  unlimited:      { label: "Unlimited",     color: "#ffffff", glow: true,  particles: 9 },
 };
 
+// Rangfolge für Balance-Auswertungen/Sortierung (niedrig -> hoch)
+export const RARITY_ORDER = ["common", "rare", "superRare", "epic", "legendary", "mythic", "superLegendary", "exotic", "unlimited"];
+
 // Mario = separater Starter-Skin (siehe Klärung in Punkt 18/19 des Prompts).
-// Falls "Mario" später zu "Mayo" umbenannt werden soll: nur den Namen unten ändern,
-// alles andere (Unlock-Logik, Rarity, Referenzen) bleibt gültig.
+// (Mayo wurde komplett aus dem Spiel entfernt - siehe REMOVED_SKIN_IDS in
+// rewards/profile.js für die Bereinigung alter Spielstände.)
 //
 // appearance: aus den vom Nutzer bereitgestellten Referenzfotos abgeleitete
 // Merkmale (Haarfarbe, Kleidung, markantes Accessoire) - KEIN echtes Foto wird
@@ -26,25 +31,16 @@ export const SKINS = [
   {
     id: "mario",
     name: "Mario",
-    rarity: "common",
+    rarity: "rare",
     unlockMethod: "starter", // automatisch beim ersten Spielstart
     description: "Der treue Begleiter für den ersten Ausflug ins Gebäude.",
     asset: null,
     appearance: { hairColor: "#2b2320", topColor: "#3a63c9", accessory: null },
   },
   {
-    id: "mayo",
-    name: "Mayo",
-    rarity: "superRare",
-    unlockMethod: "box",
-    description: null,
-    asset: null,
-    appearance: { hairColor: "#241c14", topColor: "#1c1c1c", accessory: "curly" },
-  },
-  {
     id: "neo",
     name: "Neo",
-    rarity: "epic",
+    rarity: "superRare",
     unlockMethod: "box",
     description: null,
     asset: null,
@@ -53,7 +49,7 @@ export const SKINS = [
   {
     id: "floet",
     name: "Flöt",
-    rarity: "mythic",
+    rarity: "epic",
     unlockMethod: "box",
     description: null,
     asset: null,
@@ -62,7 +58,7 @@ export const SKINS = [
   {
     id: "floe",
     name: "Flö",
-    rarity: "legendary",
+    rarity: "mythic",
     unlockMethod: "box",
     description: null,
     asset: null,

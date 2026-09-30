@@ -501,8 +501,8 @@ body {
 
 /* --- Obstkorb (fruitCatcher) --- */
 .fc-playfield { position: absolute; inset: 0; overflow: hidden; }
-.fc-basket { position: absolute; bottom: 4px; z-index: 10; transition: left 0.03s linear; }
-.fc-fruit { position: absolute; font-size: 2rem; transform: translate(-50%, -50%); filter: drop-shadow(0 4px 6px rgba(0,0,0,0.4)); }
+.fc-basket { position: absolute; left: 0; bottom: 4px; z-index: 10; width: 64px; height: 64px; will-change: transform; }
+.fc-fruit { position: absolute; left: 0; top: 0; font-size: 2rem; will-change: transform; filter: drop-shadow(0 4px 6px rgba(0,0,0,0.4)); }
 .fc-fruit--gold { filter: drop-shadow(0 0 10px #ffd166) drop-shadow(0 4px 6px rgba(0,0,0,0.4)); }
 .fc-fruit--bad { filter: grayscale(0.5) drop-shadow(0 4px 6px rgba(0,0,0,0.4)); }
 .fc-fruit--trash { opacity: 0.75; }
@@ -756,31 +756,122 @@ body {
 .online-leaderboard-score { font-weight: 800; color: var(--accent-warm); }
 .online-result-actions { display: flex; flex-direction: column; gap: 8px; margin-top: 8px; }
 
-/* --- Meteor Dash (neues Minispiel: Ausweichen + Einsammeln, echtes Game Over) --- */
-.md-playfield { position: absolute; inset: 0; overflow: hidden; background: linear-gradient(180deg, #171b2e, #0a0c14); }
-.md-lives { position: absolute; top: 8px; left: 8px; z-index: 15; font-size: 1rem; letter-spacing: 2px; }
-.md-ship { position: absolute; bottom: 4px; z-index: 10; transition: left 0.03s linear; }
-.md-object { position: absolute; font-size: 1.9rem; transform: translate(-50%, -50%); filter: drop-shadow(0 4px 6px rgba(0,0,0,0.4)); }
-.md-object--meteor { filter: drop-shadow(0 0 8px rgba(255,84,112,0.6)); }
-.md-object--goldstar { filter: drop-shadow(0 0 10px #ffd166); }
 
-/* --- Schatzpfade (neues Minispiel: Entscheidung unter Zeitdruck, echtes Game Over) --- */
-.tp-playfield { display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 14px; height: 100%; padding: 10px; position: relative; }
-.tp-avatar-row { display: flex; justify-content: center; }
-.tp-lives { font-size: 1rem; letter-spacing: 2px; }
-.tp-hint { font-weight: 800; font-size: 1.05rem; color: var(--text-dim); text-align: center; }
-.tp-chests { display: flex; gap: 10px; justify-content: center; flex-wrap: wrap; }
-.tp-chest {
-  width: 64px; height: 64px;
-  border-radius: 14px;
-  border: 2px solid #2a3150;
-  background: var(--panel-2);
-  font-size: 1.8rem;
-  display: flex; align-items: center; justify-content: center;
-  cursor: pointer;
-  transition: transform 0.1s ease;
+
+/* --- Vier gewinnt (Brettspiel gegen KI) --- */
+.c4-playfield { display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 10px; height: 100%; padding: 8px; }
+.c4-top { display: flex; align-items: center; gap: 12px; }
+.c4-status { font-weight: 800; font-size: 0.95rem; color: var(--text); min-width: 150px; }
+.c4-board {
+  display: grid; grid-template-columns: repeat(7, 1fr); gap: 3px;
+  width: 100%; max-width: 318px; padding: 6px;
+  background: linear-gradient(160deg, #2b3c8f, #1a2466);
+  border-radius: 16px; box-shadow: 0 8px 20px rgba(0,0,0,0.45), inset 0 2px 0 rgba(255,255,255,0.12);
+  overflow: hidden;
 }
-.tp-chest:active { transform: scale(0.92); }
-.tp-chest--peek { border-color: var(--accent-warm); box-shadow: 0 0 14px rgba(255,176,32,0.35); }
-.tp-chest--right { background: rgba(78,227,154,0.25); border-color: var(--safe); }
-.tp-chest--wrong { background: rgba(255,84,112,0.25); border-color: var(--danger); }
+.c4-col { display: flex; flex-direction: column; gap: 3px; padding: 0; background: none; border: none; border-radius: 10px; cursor: pointer; touch-action: manipulation; }
+.c4-col:hover:not(:disabled) { background: rgba(255,255,255,0.08); }
+.c4-col:disabled { cursor: default; }
+.c4-cell { position: relative; aspect-ratio: 1; border-radius: 50%; background: #0c1140; box-shadow: inset 0 3px 6px rgba(0,0,0,0.6); }
+.c4-cell--win { box-shadow: 0 0 0 3px #fff, 0 0 14px 4px var(--accent-warm); z-index: 2; }
+.c4-disc { position: absolute; inset: 0; border-radius: 50%; display: flex; align-items: center; justify-content: center; }
+.c4-disc--human { background: radial-gradient(circle at 35% 30%, #fff8, var(--c4-player, #4fa3ff) 55%); box-shadow: inset 0 -3px 5px rgba(0,0,0,0.3); }
+.c4-disc--human canvas { margin-top: 2px; }
+.c4-disc--ai { background: radial-gradient(circle at 35% 30%, #5b6288, #1b1f38 70%); box-shadow: inset 0 -3px 5px rgba(0,0,0,0.5), 0 0 0 2px #ff5470 inset; }
+
+/* --- Farbröhren (Sortierpuzzle) --- */
+.ft-playfield { display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 12px; height: 100%; padding: 8px; }
+.ft-top { display: flex; align-items: center; gap: 12px; }
+.ft-info { font-weight: 700; font-size: 0.85rem; color: var(--text-dim); }
+.ft-tubes { display: flex; flex-wrap: wrap; justify-content: center; gap: 12px 10px; max-width: 340px; }
+.ft-tube {
+  width: 40px; height: 142px; padding: 3px; gap: 2px;
+  display: flex; flex-direction: column-reverse; justify-content: flex-start;
+  background: rgba(255,255,255,0.05); border: 2px solid #3a4266; border-radius: 6px 6px 20px 20px;
+  cursor: pointer; transition: transform 0.12s ease, border-color 0.12s ease; touch-action: manipulation;
+}
+.ft-tube--selected { transform: translateY(-12px); border-color: var(--accent); box-shadow: 0 6px 14px rgba(107,224,255,0.3); }
+.ft-tube--done { border-color: var(--safe); box-shadow: 0 0 12px rgba(78,227,154,0.45); }
+.ft-seg { height: 30px; border-radius: 7px; box-shadow: inset 0 -3px 0 rgba(0,0,0,0.18), inset 0 2px 0 rgba(255,255,255,0.25); }
+.ft-actions { display: flex; }
+.ft-btn { width: auto; margin: 0; padding: 10px 18px; font-size: 0.9rem; }
+.ft-btn:disabled { opacity: 0.4; }
+
+/* --- Schatzpfade (Hütchenspiel mit sichtbarem Tauschen) --- */
+.tp2-playfield { display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 10px; height: 100%; padding: 8px; }
+.tp2-avatar { display: flex; justify-content: center; }
+.tp2-lives { font-size: 1rem; letter-spacing: 2px; }
+.tp2-hint { font-weight: 800; font-size: 1rem; color: var(--text-dim); text-align: center; min-height: 1.4em; }
+.tp2-lane { position: relative; width: 100%; max-width: 340px; height: 120px; margin-top: 18px; }
+.tp2-chest { position: absolute; left: 0; top: 34px; width: 58px; height: 64px; padding: 0; background: none; border: none; cursor: pointer; will-change: transform; touch-action: manipulation; }
+.tp2-gem { position: absolute; left: 0; right: 0; bottom: 2px; font-size: 1.7rem; text-align: center; filter: drop-shadow(0 0 8px #6be0ff); }
+.tp2-box {
+  position: absolute; inset: 0; border-radius: 12px 12px 8px 8px;
+  background: linear-gradient(160deg, #c98a3d, #7a4a1e); border: 2px solid #f0c078;
+  box-shadow: 0 6px 10px rgba(0,0,0,0.4), inset 0 -6px 0 rgba(0,0,0,0.2);
+  display: flex; align-items: center; justify-content: center; font-size: 1.5rem; font-weight: 800; color: #ffe7b8;
+  transition: transform 0.22s ease;
+}
+.tp2-box--lifted { transform: translateY(-38px); }
+
+/* --- Glücksrad --- */
+.menu-grid .btn--wide { grid-column: span 2; }
+.btn--ready { position: relative; }
+.btn--ready::after { content: ""; position: absolute; top: 6px; right: 8px; width: 10px; height: 10px; border-radius: 50%; background: var(--accent-warm); box-shadow: 0 0 8px var(--accent-warm); animation: readyPulse 1.4s ease-in-out infinite; }
+@keyframes readyPulse { 0%,100% { transform: scale(1); opacity: 1; } 50% { transform: scale(1.5); opacity: 0.6; } }
+.wheel-wrap { position: relative; width: 280px; height: 292px; margin: 6px auto 12px; }
+.wheel-pointer { position: absolute; top: -4px; left: 50%; transform: translateX(-50%); z-index: 5; font-size: 1.8rem; color: var(--accent-warm); text-shadow: 0 2px 6px rgba(0,0,0,0.6); }
+.wheel {
+  position: absolute; top: 12px; left: 0; width: 280px; height: 280px; border-radius: 50%;
+  border: 5px solid #2a3150; box-shadow: 0 0 24px rgba(176,107,255,0.35), inset 0 0 18px rgba(0,0,0,0.4);
+  background: conic-gradient(#ff6b8a 0 22.5deg, #6be0ff 0 45deg, #ffd166 0 67.5deg, #7bff9e 0 90deg);
+  transition: transform 4.2s cubic-bezier(0.12, 0.6, 0.1, 1);
+  will-change: transform;
+}
+.wheel__label { position: absolute; top: 50%; left: 50%; width: 0; height: 0; }
+.wheel__label span { position: absolute; left: 0; top: 0; transform: translate(-50%, -118px); font-weight: 800; font-size: 0.78rem; color: #0b0a14; white-space: nowrap; text-shadow: 0 1px 0 rgba(255,255,255,0.35); }
+.wheel-hub { position: absolute; top: 50%; left: 50%; width: 46px; height: 46px; margin: -23px 0 0 -23px; border-radius: 50%; background: radial-gradient(circle, #fff, #b6bcd8); box-shadow: 0 0 10px rgba(0,0,0,0.5); z-index: 2; }
+
+/* --- Box-Animation: mehr Spannung, seltenheitsabhängige Effekte --- */
+.mb-fx { position: absolute; inset: 0; pointer-events: none; overflow: hidden; z-index: 4; }
+.mb-particle { position: absolute; left: 50%; top: 50%; border-radius: 50%; will-change: transform, opacity; animation: mbParticle var(--t, 0.9s) cubic-bezier(0.1, 0.7, 0.3, 1) forwards; }
+.mb-particle--rect { border-radius: 2px; }
+@keyframes mbParticle {
+  from { transform: translate(-50%, -50%) rotate(0deg) scale(1); opacity: 1; }
+  to { transform: translate(calc(-50% + var(--dx)), calc(-50% + var(--dy))) rotate(var(--rot, 0deg)) scale(0.25); opacity: 0; }
+}
+.mb-flash { position: absolute; inset: 0; background: #fff; opacity: 0; pointer-events: none; z-index: 6; animation: mbFlash 0.55s ease-out forwards; }
+@keyframes mbFlash { 0% { opacity: 0.95; } 100% { opacity: 0; } }
+.mb-overlay--shake .mb-stage { animation: mbScreenShake 0.5s linear; }
+@keyframes mbScreenShake {
+  0%, 100% { transform: translate(0, 0); } 15% { transform: translate(-9px, 5px); } 30% { transform: translate(8px, -6px); }
+  45% { transform: translate(-6px, -4px); } 60% { transform: translate(6px, 5px); } 80% { transform: translate(-3px, 2px); }
+}
+@keyframes mbEnter { 0% { transform: translateY(-220px) scale(0.6); opacity: 0; } 60% { transform: translateY(14px) scale(1.06); opacity: 1; } 80% { transform: translateY(-6px) scale(0.98); } 100% { transform: translateY(0) scale(1); opacity: 1; } }
+@keyframes mbFloat { 0%, 100% { transform: translateY(0); } 50% { transform: translateY(-9px); } }
+@keyframes mbShakeHard { 0%, 100% { transform: rotate(0) translateX(0) scale(1.04); } 25% { transform: rotate(-8deg) translateX(-5px) scale(1.04); } 75% { transform: rotate(8deg) translateX(5px) scale(1.04); } }
+@keyframes mbShakeHarder { 0%, 100% { transform: rotate(0) translateX(0) scale(1.1); } 25% { transform: rotate(-11deg) translateX(-8px) scale(1.1); } 75% { transform: rotate(11deg) translateX(8px) scale(1.1); } }
+@keyframes mbGlowCharge { 0%, 100% { transform: scale(1.1); opacity: 0.85; } 50% { transform: scale(1.5); opacity: 1; } }
+.mb-box--enter .mb-box__body { animation: mbEnter 0.65s cubic-bezier(0.2, 0.9, 0.3, 1) both; }
+.mb-box--float .mb-box__body { animation: mbFloat 1.8s ease-in-out infinite; }
+.mb-box--charge .mb-box__body { animation: mbShakeHard 0.22s linear infinite; }
+.mb-box--over .mb-box__body { animation: mbShakeHarder 0.13s linear infinite; }
+.mb-box--charge .mb-box__glow, .mb-box--over .mb-box__glow {
+  background: radial-gradient(circle, var(--charge-color, rgba(107, 224, 255, 0.55)), transparent 70%);
+  animation: mbGlowCharge 0.45s ease-in-out infinite;
+}
+.mb-box--over .mb-box__glow { width: 300px; height: 300px; }
+.mb-box--pre .mb-box__body { animation: none; transform: scale(1.16); filter: brightness(1.7) drop-shadow(0 0 34px var(--charge-color, #fff)); transition: transform 0.2s ease, filter 0.2s ease; }
+.mb-box--pre .mb-box__glow { animation: none; transform: scale(1.7); opacity: 1; background: radial-gradient(circle, #fff, var(--charge-color, rgba(107, 224, 255, 0.6)) 45%, transparent 72%); }
+.mb-reveal { position: relative; }
+.mb-rays {
+  position: absolute; top: -95px; left: 50%; width: 380px; height: 380px; margin-left: -190px; z-index: -1; opacity: 0.4; pointer-events: none;
+  background: repeating-conic-gradient(var(--rarity-color) 0 7deg, transparent 7deg 22deg);
+  -webkit-mask-image: radial-gradient(circle, #000 18%, transparent 68%); mask-image: radial-gradient(circle, #000 18%, transparent 68%);
+  animation: mbRaysSpin 14s linear infinite;
+}
+@keyframes mbRaysSpin { to { transform: rotate(360deg); } }
+@keyframes mbPop { 0% { transform: scale(0.4); opacity: 0; } 70% { transform: scale(1.12); opacity: 1; } 100% { transform: scale(1); } }
+.mb-reveal .mb-reveal-name { animation: mbPop 0.5s 0.15s both; }
+.mb-reveal .mb-reveal-rarity { animation: mbPop 0.5s 0.32s both; }
+.mb-reveal--epic #mb-reveal-canvas { animation: heroAvatarFloat 2.6s ease-in-out infinite; }

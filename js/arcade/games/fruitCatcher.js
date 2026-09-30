@@ -15,27 +15,44 @@ export function start({ container, skinId, rng, onHud, onEnd }) {
   stage.className = "fc-playfield";
   container.appendChild(stage);
 
-  const basket = mountSkinAvatar(stage, skinId, { size: 64 });
-  basket.el.classList.add("fc-basket");
+  // Halter wird per translate3d bewegt (GPU, kein Layout pro Frame); der
+  // Avatar darin behält seine eigene Bump-Animation, ohne dass sich beides
+  // gegenseitig die transform-Eigenschaft überschreibt.
+  const holder = document.createElement("div");
+  holder.className = "fc-basket";
+  stage.appendChild(holder);
+  const basket = mountSkinAvatar(holder, skinId, { size: 64 });
+
+  // Bühnenmaße einmal messen (statt clientWidth/-Height in jedem Frame ->
+  // erzwungenes Layout = Ruckeln) und bei Größenänderung aktualisieren.
+  let stageW = stage.clientWidth || 320, stageH = stage.clientHeight || 420;
+  const measure = () => { stageW = stage.clientWidth || stageW; stageH = stage.clientHeight || stageH; };
+  const ro = typeof ResizeObserver !== "undefined" ? new ResizeObserver(measure) : null;
+  if (ro) ro.observe(stage);
 
   let basketX = 50, score = 0, combo = 0, maxCombo = 0;
+  let targetPct = 50;   // gewünschte Position (aus Zeiger/Tasten)
+  let stageLeft = 0;    // linke Bühnenkante für Zeigerkoordinaten
   let fastMode = false, doublePoints = false;
   let running = true;
   const fruits = [];
   let spawnTimer = 500, modTimer = 4500, elapsed = 0, lastTs = null;
   let raf = null;
 
-  function place() { basket.el.style.left = `calc(${basketX}% - 32px)`; }
+  function place() { holder.style.transform = `translate3d(${(basketX / 100) * stageW - 32}px,0,0)`; }
   place();
 
-  function onPointer(clientX) {
+  // Eingabe: nur Zeigerposition merken (sehr billig) - die Bewegung selbst
+  // passiert einmal pro Frame im Loop. Pointer-Events decken Maus UND Touch
+  // ab (kein doppeltes touchmove mehr).
+  function onPointer(e) {
     const rect = stage.getBoundingClientRect();
-    basketX = clamp(((clientX - rect.left) / rect.width) * 100, 6, 94);
-    place();
+    stageLeft = rect.left;
+    targetPct = clamp(((e.clientX - rect.left) / rect.width) * 100, 6, 94);
   }
-  const onMove = (e) => onPointer(e.touches ? e.touches[0].clientX : e.clientX);
-  stage.addEventListener("pointermove", onMove);
-  stage.addEventListener("touchmove", onMove, { passive: true });
+  const onDown = (e) => { try { stage.setPointerCapture(e.pointerId); } catch { /* egal */ } onPointer(e); };
+  stage.addEventListener("pointerdown", onDown);
+  stage.addEventListener("pointermove", onPointer);
 
   const keys = {};
   const onKeyDown = (e) => { keys[e.key] = true; };
@@ -48,6 +65,7 @@ export function start({ container, skinId, rng, onHud, onEnd }) {
     const type = roll < 0.08 ? "gold" : roll < 0.18 ? "bad" : roll < 0.26 ? "trash" : "good";
     const el = document.createElement("div");
     el.className = `fc-fruit fc-fruit--${type}`;
+    el.style.transform = "translate3d(-100px,-100px,0)"; // bis zum ersten Frame außerhalb parken
     el.textContent = type === "good" ? GOOD[Math.floor(rng() * GOOD.length)]
       : type === "gold" ? GOLD : type === "bad" ? BAD : TRASH;
     stage.appendChild(el);
@@ -66,13 +84,14 @@ export function start({ container, skinId, rng, onHud, onEnd }) {
     score = Math.max(0, score + pts);
     basket.bump();
     audio.sfx(pts >= 0 ? "pop" : "wrong");
-    const px = (basketX / 100) * stage.clientWidth;
-    popFloatingText(stage, px, stage.clientHeight - 90, pts >= 0 ? `+${pts}` : `${pts}`, pts >= 0 ? "good" : "bad");
+    const px = (basketX / 100) * stageW;
+    popFloatingText(stage, px, stageH - 90, pts >= 0 ? `+${pts}` : `${pts}`, pts >= 0 ? "good" : "bad");
   }
 
   function cleanupListeners() {
-    stage.removeEventListener("pointermove", onMove);
-    stage.removeEventListener("touchmove", onMove);
+    stage.removeEventListener("pointerdown", onDown);
+    stage.removeEventListener("pointermove", onPointer);
+    if (ro) ro.disconnect();
     window.removeEventListener("keydown", onKeyDown);
     window.removeEventListener("keyup", onKeyUp);
   }
@@ -97,8 +116,15 @@ export function start({ container, skinId, rng, onHud, onEnd }) {
     lastTs = ts;
     elapsed += dt;
 
-    if (keys.ArrowLeft) { basketX = clamp(basketX - dt * 0.06, 6, 94); place(); }
-    if (keys.ArrowRight) { basketX = clamp(basketX + dt * 0.06, 6, 94); place(); }
+    // Tastatur verschiebt das Ziel; der Korb folgt dem Ziel framerate-
+    // unabhängig (exponentielle Glättung, ~35 ms Zeitkonstante = spürbar
+    // direkt, aber ohne Sprünge bei unregelmäßigen Pointer-Events).
+    if (keys.ArrowLeft) targetPct = clamp(targetPct - dt * 0.06, 6, 94);
+    if (keys.ArrowRight) targetPct = clamp(targetPct + dt * 0.06, 6, 94);
+    const follow = 1 - Math.exp(-dt / 35);
+    basketX += (targetPct - basketX) * follow;
+    if (Math.abs(targetPct - basketX) < 0.02) basketX = targetPct;
+    place();
 
     modTimer -= dt;
     if (modTimer <= 0) {
@@ -115,12 +141,11 @@ export function start({ container, skinId, rng, onHud, onEnd }) {
       spawnTimer = clamp(640 - elapsed * 0.012, 250, 640);
     }
 
-    const basketTopPx = stage.clientHeight - 46;
+    const basketTopPx = stageH - 46;
     for (let i = fruits.length - 1; i >= 0; i--) {
       const f = fruits[i];
       f.y += f.speed * (dt / 1000);
-      f.el.style.left = `${f.x}%`;
-      f.el.style.top = `${f.y}px`;
+      f.el.style.transform = `translate3d(${(f.x / 100) * stageW}px,${f.y}px,0) translate(-50%,-50%)`;
       if (f.y >= basketTopPx) {
         if (Math.abs(f.x - basketX) < 11) catchFruit(f);
         else if (f.type === "good" || f.type === "gold") combo = 0;

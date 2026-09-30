@@ -106,7 +106,7 @@ export function createArcadeController({ getProfile, saveProfile, showScreen, au
     const tier = rewardTierFromPercent(adjustedPercent);
     const xpEarned = Math.round(tier.xp * diff.rewardMultiplier);
     const coinsEarned = Math.round(tier.coins * diff.rewardMultiplier);
-    const { isNewHighscore, levelUps } = applyArcadeRewards(profile, {
+    const { isNewHighscore, levelUps, bonusSpinEarned } = applyArcadeRewards(profile, {
       gameId, xpEarned, coinsEarned, score: result.score, maxCombo: result.maxCombo ?? 0, tier: tier.tier,
     });
     saveProfile(profile);
@@ -129,6 +129,7 @@ export function createArcadeController({ getProfile, saveProfile, showScreen, au
           <span class="arcade-reward-chip">+${coinsEarned} 🪙</span>
         </div>
         <div class="arcade-result__difficulty">Schwierigkeit: ${diff.label}</div>
+        ${bonusSpinEarned ? `<div class="arcade-result__levelup">🎡 Bonus-Dreh am Glücksrad erhalten!</div>` : ""}
         ${levelUps.length ? `<div class="arcade-result__levelup">LEVEL UP! Level ${levelUps[levelUps.length - 1]}</div>` : ""}
         <div class="arcade-result__actions">
           <button id="btn-arcade-retry" class="btn btn--primary">NOCHMAL SPIELEN</button>

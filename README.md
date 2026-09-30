@@ -31,8 +31,12 @@ Dann im Browser: http://localhost:8000 (bzw. der von serve angezeigte Port)
 
 ## Minispiele (`js/arcade/games/`)
 Obstkorb, Balloon Pop, Color Trick, Mini Memory, Reaktion, Star Catcher,
-Stopp bei Grün, Schnellster Finger, Meteor Dash (Ausweichen, Leben, Game
-Over), Schatzpfade (Merken + Entscheiden, Leben, Game Over). Gemeinsames Interface:
+Stopp bei Grün, Schnellster Finger, Schatzpfade (Hütchenspiel mit sichtbar
+tauschenden Kisten, Leben, Game Over), Vier gewinnt (gegen KI mit 3 Stufen,
+Minimax mit Alpha-Beta), Farbröhren (Sortier-/Logikpuzzle mit Zug-Limit).
+
+Meteor Dash wurde entfernt (inkl. aller CSS-Klassen/Highscores/Migration
+alter Spielstände über REMOVED_GAME_IDS in rewards/profile.js). Gemeinsames Interface:
 `start({ container, skinId, rng, onHud, onEnd }) -> { destroy() }`.
 
 ## Deployment auf Render (Online-Server)
@@ -66,3 +70,21 @@ Dateisystem bei jedem Neu-Deploy zurückgesetzt, die Zähler starten dann
 wieder bei 0 (für dauerhafte Zahlen später eine echte Datenbank anbinden).
 Wer offline spielt/der Server nicht erreichbar ist, kann den Code trotzdem
 einlösen - er fehlt dann nur in der globalen Statistik.
+
+## Glücksrad
+1 kostenloser Dreh/Tag + 1 Bonus-Dreh alle 8 Minispiel-Runden
+(`ROUNDS_PER_BONUS_SPIN` in rewards/profile.js). 16 Felder (Münzen/XP/eine
+Gratis-Basic-Box), siehe js/rewards/wheel.js.
+
+## Skins & Box-Balance
+Mayo ist komplett entfernt (Migration alter Spielstände: REMOVED_SKIN_IDS in
+rewards/profile.js, fällt automatisch auf Mario zurück). Aktuelle Raritäten:
+Mario=Selten, Neo=Superselten, Flöt=Episch, Flö=Mythisch, Löndi=Legendär,
+Bamados=Superlegendär, Zewy=Exotisch, Brüshka=Unlimited.
+Drop-Raten bewusst auf Langzeit-Sammeln ausgelegt (siehe
+`node tools/simulate_drops.mjs` für eine Balance-Simulation) - Median liegt
+je nach Box zwischen ~360 und ~1400 Boxen, bis alle Box-Skins gesammelt sind.
+
+## Creator Codes (aktuell)
+BIGSEVI, LÖNDI (auch LOENDI), BRÜSHKA (auch BRUESHKA/BRUSHKA). Je +250
+Münzen, einmal pro Profil/Browser.

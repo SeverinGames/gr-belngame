@@ -17,6 +17,7 @@ export const MISSION_DEFS = [
   { id: "collect1000", label: "Sammle insgesamt 1.000 Münzen.", target: 1000, statKey: "coinsEverEarned", reward: { coins: 100 } },
   { id: "collect5000", label: "Sammle insgesamt 5.000 Münzen.", target: 5000, statKey: "coinsEverEarned", reward: { coins: 300 } },
   { id: "streak3", label: "Schaffe 3 Minispiel-Runden hintereinander (mind. GESCHAFFT-Bewertung).", target: 3, statKey: "goodRoundStreak", reward: { coins: 120 } },
+  { id: "wheel3", label: "Drehe das Glücksrad 3-mal.", target: 3, statKey: "wheelSpins", reward: { coins: 60 } },
   { id: "days3", label: "Spiele an 3 verschiedenen Tagen.", target: 3, statKey: "distinctDaysPlayed", reward: { coins: 150 } },
 ];
 

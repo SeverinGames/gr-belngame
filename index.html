@@ -31,6 +31,7 @@
         <button id="btn-locker" class="btn btn--secondary">👤 SPIND</button>
         <button id="btn-missions" class="btn btn--secondary">🎯 MISSIONEN</button>
         <button id="btn-daily" class="btn btn--secondary">🎁 BELOHNUNG</button>
+        <button id="btn-wheel" class="btn btn--secondary btn--wide">🎡 GLÜCKSRAD</button>
       </div>
       <button id="btn-settings" class="btn btn--ghost">⚙️ Einstellungen</button>
     </section>
@@ -179,6 +180,18 @@
       <p id="daily-status"></p>
       <button id="btn-daily-claim" class="btn btn--primary">Abholen</button>
       <p id="daily-claimed-banner" class="daily-claimed-banner hidden"></p>
+      <button class="btn btn--secondary" data-back="screen-menu">Zurück</button>
+    </section>
+
+    <section id="screen-wheel" class="screen hidden">
+      <h2>Glücksrad</h2>
+      <p id="wheel-status" class="arcade-subtitle"></p>
+      <div class="wheel-wrap">
+        <div class="wheel-pointer">▼</div>
+        <div id="wheel" class="wheel"></div>
+      </div>
+      <button id="btn-wheel-spin" class="btn btn--arcade">DREHEN</button>
+      <p id="wheel-result" class="daily-claimed-banner hidden"></p>
       <button class="btn btn--secondary" data-back="screen-menu">Zurück</button>
     </section>
 

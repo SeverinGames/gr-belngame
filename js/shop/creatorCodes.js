@@ -19,16 +19,20 @@ function normalize(raw) {
     .replace(/ß/g, "SS");
 }
 
+// Tolerierte Alternativschreibweisen (Ü als U getippt o.ä.)
+const CODE_ALIASES = { BRUSHKA: "BRUESHKA", LONDI: "LOENDI" };
+
 export const CREATOR_CODES = {
   BIGSEVI: { label: "BIGSEVI", reward: { coins: 250 } },
   LOENDI: { label: "LÖNDI", reward: { coins: 250 } },
-  BUSCHKA: { label: "BUSCHKA", reward: { coins: 250 } },
+  BRUESHKA: { label: "BRÜSHKA", reward: { coins: 250 } }, // Eingabe "BRÜSHKA" wird zu BRUESHKA normalisiert
 };
 
 // notifyServer: optionale Funktion (code) => void, um die globale
 // Nutzungsstatistik hochzuzählen (fire-and-forget, siehe main.js).
 export function redeemCreatorCode(profile, rawInput, notifyServer) {
-  const code = normalize(rawInput);
+  let code = normalize(rawInput);
+  if (CODE_ALIASES[code]) code = CODE_ALIASES[code]; // z.B. BRUSHKA (Ü -> U) tolerieren
   if (!code) return { success: false, reason: "empty" };
   const def = CREATOR_CODES[code];
   if (!def) return { success: false, reason: "invalid" };

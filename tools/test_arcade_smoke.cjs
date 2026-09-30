@@ -38,7 +38,7 @@ const { chromium } = require('playwright');
   await page.waitForTimeout(150);
   const cardCount = await page.locator('.arcade-card').count();
   console.log('Anzahl Minispiel-Karten (SOLO):', cardCount);
-  if (cardCount !== 10) errors.push(`Erwartet 8 Minispiel-Karten, gefunden ${cardCount}`);
+  if (cardCount !== 11) errors.push(`Erwartet 11 Minispiel-Karten, gefunden ${cardCount}`);
 
   await page.locator('.arcade-card').filter({ hasText: 'Color Trick' }).click();
   await page.waitForTimeout(200);

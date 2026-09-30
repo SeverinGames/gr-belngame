@@ -118,7 +118,7 @@ function drawHairAndAccessory(ctx, s, palette) {
   }
 
   if (palette.accessory === "curly") {
-    // Lockiges/unordentliches Haar (Mayo, Flö) - mehrere kleine Kreise statt Halbkreis
+    // Lockiges/unordentliches Haar (Flö) - mehrere kleine Kreise statt Halbkreis
     for (let i = -3; i <= 3; i++) {
       ctx.beginPath();
       ctx.arc(i * 4 * s, -68 * s + Math.abs(i % 2) * 2 * s, 4.5 * s, 0, Math.PI * 2);

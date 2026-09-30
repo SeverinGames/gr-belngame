@@ -60,18 +60,25 @@ export const ARCADE_GAMES = [
     load: () => import("./games/quickFinger.js"),
   },
   {
-    id: "meteorDash",
-    name: "Meteor Dash",
-    icon: "☄️",
-    tagline: "Weiche Meteoriten aus und sammle Sterne - 3 Leben!",
-    load: () => import("./games/meteorDash.js"),
-  },
-  {
     id: "treasurePaths",
     name: "Schatzpfade",
     icon: "💰",
     tagline: "Merk dir den Schatz, bevor die Kisten sich schließen!",
     load: () => import("./games/treasurePaths.js"),
+  },
+  {
+    id: "connectFour",
+    name: "Vier gewinnt",
+    icon: "🔴",
+    tagline: "Bring 4 Steine in eine Reihe - gegen die KI!",
+    load: () => import("./games/connectFour.js"),
+  },
+  {
+    id: "colorTubes",
+    name: "Farbröhren",
+    icon: "🧪",
+    tagline: "Sortiere die Farben, bis jede Röhre nur eine hat.",
+    load: () => import("./games/colorTubes.js"),
   },
 ];
 

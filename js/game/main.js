@@ -12,6 +12,7 @@ import { loadProfile, saveProfile, grantCoins, grantRewards } from "../rewards/p
 import { canClaimDaily, claimDaily, describeReward, previewReward } from "../rewards/dailyReward.js";
 import { listMissionProgress, claimMission } from "../missions/missions.js";
 import { listBoxes, purchaseBox, grantFreeBox } from "../shop/shop.js";
+import { WHEEL_SLICES, sliceLabel, describeSlice, spinsAvailable, canFreeSpin, spinWheel } from "../rewards/wheel.js";
 import { redeemCreatorCode } from "../shop/creatorCodes.js";
 import { playBoxOpeningAnimation } from "../rewards/boxAnimation.js";
 import { createArcadeController } from "../arcade/controller.js";
@@ -45,8 +46,16 @@ function openArcadeDifficultyScreen(gameId) {
   showScreen("screen-arcade-difficulty");
 }
 
+// Kleine Punkte an "Belohnung" / "Glücksrad", wenn dort etwas wartet -
+// bewusst dezent, aber genug Anreiz, regelmäßig vorbeizuschauen.
+function refreshHomeBadges() {
+  el("#btn-daily")?.classList.toggle("btn--ready", canClaimDaily(profile));
+  el("#btn-wheel")?.classList.toggle("btn--ready", spinsAvailable(profile) > 0);
+}
+
 function resetToMenu() {
   showScreen("screen-menu");
+  refreshHomeBadges();
   renderProfileSummary(profile);
   audio.playMood("menu");
 }
@@ -75,6 +84,90 @@ function handleClaimMission(missionId) {
       renderSkinBadge(profile.equippedSkin ?? "mario");
     });
   }
+}
+
+
+// --- Glücksrad -------------------------------------------------------------
+let wheelRotation = 0;
+let wheelSpinning = false;
+let wheelBuilt = false;
+
+function buildWheel() {
+  if (wheelBuilt) return;
+  wheelBuilt = true;
+  const wheel = el("#wheel");
+  const step = 360 / WHEEL_SLICES.length;
+  const colors = ["#ff6b8a", "#6be0ff", "#ffd166", "#7bff9e"];
+  wheel.style.background = `conic-gradient(${WHEEL_SLICES.map((_, i) => `${colors[i % 4]} ${i * step}deg ${(i + 1) * step}deg`).join(", ")})`;
+  WHEEL_SLICES.forEach((sl, i) => {
+    const lab = document.createElement("div");
+    lab.className = "wheel__label";
+    lab.style.transform = `rotate(${(i + 0.5) * step}deg)`;
+    lab.innerHTML = `<span>${sliceLabel(sl)}</span>`;
+    wheel.appendChild(lab);
+  });
+  const hub = document.createElement("div");
+  hub.className = "wheel-hub";
+  wheel.appendChild(hub);
+}
+
+function renderWheelStatus() {
+  const free = canFreeSpin(profile);
+  const bonus = profile.wheel.bonusSpins ?? 0;
+  el("#wheel-status").textContent = free
+    ? `Dein kostenloser Tagesdreh ist bereit!${bonus ? ` (+${bonus} Bonus-Dreh${bonus > 1 ? "s" : ""})` : ""}`
+    : bonus > 0
+      ? `Bonus-Drehs: ${bonus} · alle 8 Minispiel-Runden gibt's einen neuen.`
+      : "Heute schon gedreht - morgen wartet ein neuer Dreh. Alle 8 Minispiel-Runden gibt's einen Bonus-Dreh!";
+  el("#btn-wheel-spin").disabled = wheelSpinning || spinsAvailable(profile) <= 0;
+}
+
+function openWheelScreen() {
+  buildWheel();
+  showScreen("screen-wheel");
+  el("#wheel-result").classList.add("hidden");
+  renderWheelStatus();
+}
+
+function handleWheelSpin() {
+  if (wheelSpinning) return;
+  const res = spinWheel(profile, Math.random);
+  if (!res.success) return;
+  saveProfile(profile); // sofort speichern - der Dreh ist verbraucht, egal was danach passiert
+  wheelSpinning = true;
+  el("#btn-wheel-spin").disabled = true;
+  el("#wheel-result").classList.add("hidden");
+
+  const step = 360 / WHEEL_SLICES.length;
+  const jitter = (Math.random() - 0.5) * step * 0.7;
+  const center = (res.index + 0.5) * step + jitter;
+  const current = ((wheelRotation % 360) + 360) % 360;
+  wheelRotation += 360 * 5 + ((360 - center - current) % 360 + 360) % 360;
+  el("#wheel").style.transform = `rotate(${wheelRotation}deg)`;
+  // Ticken beim Drehen (langsamer werdend)
+  let tickGap = 60, t = 0;
+  const tick = () => { if (!wheelSpinning) return; audio.sfx("tick"); tickGap *= 1.09; t += tickGap; if (t < 4000) setTimeout(tick, tickGap); };
+  tick();
+
+  setTimeout(() => {
+    wheelSpinning = false;
+    audio.sfx("unlockRare");
+    const box = el("#wheel-result");
+    box.textContent = `🎡 Du hast ${describeSlice(res.slice)} gewonnen!`;
+    box.classList.remove("hidden");
+    renderProfileSummary(profile);
+    renderWheelStatus();
+    refreshHomeBadges();
+    if (res.slice.boxId) {
+      const boxResult = grantFreeBox(profile, res.slice.boxId, Math.random);
+      saveProfile(profile);
+      playBoxOpeningAnimation(boxResult).then(() => {
+        box.textContent = `🎡 Gratis Basic Box: ${boxResult.skin.name}${boxResult.isNew ? " (neu!)" : ` - Duplikat, +${boxResult.compensationCoins} 🪙`}`;
+        renderProfileSummary(profile);
+        renderSkinBadge(profile.equippedSkin ?? "mario");
+      });
+    }
+  }, 4400);
 }
 
 // --- Shop (ersetzt das alte Schlüssel-/Mystery-Box-System) ---------------
@@ -146,6 +239,7 @@ document.addEventListener("DOMContentLoaded", () => {
     audio.sfx("unlockRare");
     renderProfileSummary(profile);
     renderDailyStatus(false, res.streakDay, res.streakDay, ""); // Button sperren, Vorschau ausblenden
+    refreshHomeBadges();
 
     if (res.reward.type === "box") {
       // Gratis-Box (Jackpot-Tag) - tatsächlich öffnen und die echte
@@ -162,6 +256,8 @@ document.addEventListener("DOMContentLoaded", () => {
     }
   });
 
+  el("#btn-wheel").addEventListener("click", () => { audio.sfx("click"); openWheelScreen(); });
+  el("#btn-wheel-spin").addEventListener("click", handleWheelSpin);
   el("#btn-missions").addEventListener("click", () => { audio.sfx("click"); openMissionsScreen(); });
   el("#btn-shop").addEventListener("click", () => { audio.sfx("click"); openShopScreen(); });
   el("#btn-creator-code-redeem").addEventListener("click", handleRedeemCreatorCode);
@@ -239,6 +335,7 @@ document.addEventListener("DOMContentLoaded", () => {
   populateLobbyGameSelect();
   renderSkinBadge((profile.equippedSkin ?? getStarterSkin().id));
   renderProfileSummary(profile);
+  refreshHomeBadges();
   applySettingsToAudio();
   audio.playMood("menu");
 });

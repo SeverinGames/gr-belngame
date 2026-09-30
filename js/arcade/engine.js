@@ -63,6 +63,22 @@ export function mountSkinAvatar(container, skinId, { size = 72, mode = "idle" } 
   };
 }
 
+// Statisches (nicht animiertes) Skin-Bild - für viele kleine Figuren (z.B.
+// Spielsteine bei Vier gewinnt), ohne pro Figur eine eigene rAF-Schleife.
+export function renderSkinStill(container, skinId, size = 36) {
+  const canvas = document.createElement("canvas");
+  const dpr = window.devicePixelRatio || 1;
+  canvas.width = size * dpr;
+  canvas.height = size * dpr;
+  canvas.style.width = `${size}px`;
+  canvas.style.height = `${size}px`;
+  const ctx = canvas.getContext("2d");
+  ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+  drawCharacter(ctx, { x: size / 2, y: size * 0.9, facing: "down", walkPhase: 0, palette: getSkinPalette(skinId), scale: size / 100 });
+  container.appendChild(canvas);
+  return canvas;
+}
+
 // --- Combo-Tracker: zählt aufeinanderfolgende Treffer, verfällt nach resetMs ---
 export class ComboTracker {
   constructor(resetMs = 1300) {
