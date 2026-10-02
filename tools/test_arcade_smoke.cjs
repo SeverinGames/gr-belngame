@@ -9,7 +9,7 @@ const { chromium } = require('playwright');
 
   // Genug Münzen vorab setzen, damit wir eine Box im Shop kaufen können.
   await page.addInitScript(() => {
-    localStorage.setItem('nwo_profile_v1', JSON.stringify({ coins: 5000 }));
+    localStorage.setItem('nwo_profile_v2', JSON.stringify({ coins: 5000 }));
   });
 
   await page.goto('http://localhost:8123/index.html', { timeout: 8000 });

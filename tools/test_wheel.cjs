@@ -20,7 +20,7 @@ const { chromium } = require('playwright');
   console.log('Anzahl Radfelder:', wheelSlices);
   if (wheelSlices !== 16) errors.push('Erwartet 16 Radfelder, gefunden ' + wheelSlices);
 
-  const coinsBefore = await page.evaluate(() => JSON.parse(localStorage.getItem('nwo_profile_v1') || '{"coins":0}').coins);
+  const coinsBefore = await page.evaluate(() => JSON.parse(localStorage.getItem('nwo_profile_v2') || '{"coins":0}').coins);
   await page.click('#btn-wheel-spin');
   await page.waitForTimeout(500);
   const spinDisabled = await page.locator('#btn-wheel-spin').isDisabled();

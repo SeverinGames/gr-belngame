@@ -6,12 +6,22 @@
 import { getStarterSkin, getSkinById, SKINS, RARITY } from "../skins/skins.js";
 import {
   renderSkinBadge, renderProfileSummary, renderMissions, renderDailyStatus,
-  renderDailyClaimed, renderShop, showScreen,
+  renderDailyClaimed, showScreen,
 } from "../ui/ui.js";
-import { loadProfile, saveProfile, grantCoins, grantRewards } from "../rewards/profile.js";
+import { renderShop, setShopTab, renderProfile, showNickMessage, destroyProfileAvatar, renderLeaderboard } from "../ui/screens.js";
+import { celebrate, playMiniBox } from "../ui/celebrations.js";
+import { wasReset, loadProfile, saveProfile, grantRewards, unlockSkin, validateNickname } from "../rewards/profile.js";
+import { addSpin, addMiniBoxes } from "../progress/rewardOps.js";
+import { checkMilestones } from "../progress/milestones.js";
+import { applyRound } from "../progress/roundResult.js";
+import { rewardTierFromPercent } from "../arcade/engine.js";
+import { equipCosmetic } from "../progress/cosmetics.js";
+import { fetchTop, submitMyScore, autoSync, ERROR_TEXT } from "../network/leaderboardClient.js";
+import { totalPartyPoints } from "../progress/partyPoints.js";
+import { DIFFICULTY_DEFS, DIFFICULTY_ORDER, formatScore, highscoreFor } from "../arcade/controller.js";
 import { canClaimDaily, claimDaily, describeReward, previewReward } from "../rewards/dailyReward.js";
 import { listMissionProgress, claimMission } from "../missions/missions.js";
-import { listBoxes, purchaseBox, grantFreeBox } from "../shop/shop.js";
+import { listBoxes, purchaseBox, grantFreeBox, buyMiniBox, redeemVoucher } from "../shop/shop.js";
 import { WHEEL_SLICES, sliceLabel, describeSlice, spinsAvailable, canFreeSpin, spinWheel } from "../rewards/wheel.js";
 import { redeemCreatorCode } from "../shop/creatorCodes.js";
 import { playBoxOpeningAnimation } from "../rewards/boxAnimation.js";
@@ -23,7 +33,8 @@ import { SERVER_URL } from "../network/config.js";
 import { drawCharacter, getSkinPalette } from "../world/characterSprite.js";
 
 let profile = loadProfile();
-const myOnlineName = getSkinById(profile.equippedSkin ?? "mario").name + "-" + Math.floor(Math.random() * 90 + 10);
+const fallbackOnlineName = getSkinById(profile.equippedSkin ?? "mario").name + "-" + Math.floor(Math.random() * 90 + 10);
+const onlineName = () => profile.nickname || fallbackOnlineName;
 let pendingArcadeGameId = null; // wartet auf Schwierigkeitsauswahl (SOLO)
 
 const arcadeController = createArcadeController({
@@ -33,16 +44,44 @@ const arcadeController = createArcadeController({
   audio,
   renderProfileSummary,
   onPickGame: (gameId) => openArcadeDifficultyScreen(gameId),
+  onRoundDone: () => { afterProgress(); },
 });
+
+// Nach jeder Aktion mit Fortschritt: speichern, Anzeige auffrischen,
+// Erfolgserlebnisse (LEVEL UP, Meilensteine) zeigen, Rangliste leise aktualisieren.
+function afterProgress() {
+  checkMilestones(profile);
+  saveProfile(profile);
+  renderProfileSummary(profile);
+  refreshHomeBadges();
+  autoSync(profile);
+  return celebrate(audio);
+}
 
 function el(sel) {
   return document.querySelector(sel);
 }
 
+// Kurze, nützliche Hinweise nur dort, wo die Stufen sich im Spiel unterscheiden
+const DIFF_DETAIL = {
+  memory: { easy: "12 Karten", normal: "16 Karten", hard: "20 Karten" },
+  maisMission: { easy: "kurzer Weg", normal: "längerer Weg", hard: "langer Weg" },
+  mazeRunner: { easy: "kleines Labyrinth", normal: "größeres Labyrinth", hard: "großes Labyrinth" },
+};
+
 function openArcadeDifficultyScreen(gameId) {
   pendingArcadeGameId = gameId;
   const meta = getArcadeGame(gameId);
   el("#arcade-difficulty-gamename").textContent = meta ? `${meta.icon} ${meta.name}` : "";
+  document.querySelectorAll("[data-arcade-difficulty]").forEach((btn) => {
+    const d = btn.dataset.arcadeDifficulty;
+    const best = highscoreFor(profile, gameId, d);
+    const extra = DIFF_DETAIL[gameId]?.[d];
+    const parts = [];
+    if (extra) parts.push(extra);
+    if (best != null) parts.push(`DEIN HIGHSCORE: ${formatScore(meta, best)}`);
+    btn.querySelector(".diff-btn__best").textContent = parts.join(" · ");
+  });
   showScreen("screen-arcade-difficulty");
 }
 
@@ -72,12 +111,12 @@ function openMissionsScreen() {
 }
 
 function handleClaimMission(missionId) {
-  const res = claimMission(profile, missionId, { grantRewards, grantFreeBox });
+  const res = claimMission(profile, missionId, { grantRewards, grantFreeBox, unlockSkin, addSpin, addMiniBoxes });
   if (!res.success) return;
-  saveProfile(profile);
+  checkMilestones(profile);
+  afterProgress();
   audio.sfx("unlockRare");
   renderMissions(listMissionProgress(profile), handleClaimMission);
-  renderProfileSummary(profile);
   if (res.boxResult) {
     playBoxOpeningAnimation(res.boxResult).then(() => {
       renderProfileSummary(profile);
@@ -117,8 +156,8 @@ function renderWheelStatus() {
   el("#wheel-status").textContent = free
     ? `Dein kostenloser Tagesdreh ist bereit!${bonus ? ` (+${bonus} Bonus-Dreh${bonus > 1 ? "s" : ""})` : ""}`
     : bonus > 0
-      ? `Bonus-Drehs: ${bonus} · alle 8 Minispiel-Runden gibt's einen neuen.`
-      : "Heute schon gedreht - morgen wartet ein neuer Dreh. Alle 8 Minispiel-Runden gibt's einen Bonus-Dreh!";
+      ? `Bonus-Drehs: ${bonus} · weitere gibt's durchs Spielen, bei Level-Ups & Meilensteinen.`
+      : "Heute schon gedreht - morgen wartet ein neuer Dreh. Bonus-Drehs gibt's durchs Spielen, bei Level-Ups & Meilensteinen!";
   el("#btn-wheel-spin").disabled = wheelSpinning || spinsAvailable(profile) <= 0;
 }
 
@@ -153,27 +192,37 @@ function handleWheelSpin() {
     wheelSpinning = false;
     audio.sfx("unlockRare");
     const box = el("#wheel-result");
-    box.textContent = `🎡 Du hast ${describeSlice(res.slice)} gewonnen!`;
+    box.textContent = `🎡 Du hast ${res.text} gewonnen!`;
     box.classList.remove("hidden");
-    renderProfileSummary(profile);
     renderWheelStatus();
-    refreshHomeBadges();
+    afterProgress();
     if (res.slice.boxId) {
       const boxResult = grantFreeBox(profile, res.slice.boxId, Math.random);
       saveProfile(profile);
       playBoxOpeningAnimation(boxResult).then(() => {
         box.textContent = `🎡 Gratis Basic Box: ${boxResult.skin.name}${boxResult.isNew ? " (neu!)" : ` - Duplikat, +${boxResult.compensationCoins} 🪙`}`;
-        renderProfileSummary(profile);
         renderSkinBadge(profile.equippedSkin ?? "mario");
+        afterProgress();
       });
     }
   }, 4400);
 }
 
-// --- Shop (ersetzt das alte Schlüssel-/Mystery-Box-System) ---------------
+// --- Shop: Boxen · Rad · Bonus · Sammlung ---------------------------------
+let shopTab = "boxes";
+const shopHandlers = {
+  onBuyBox: (id) => handleBuyBox(id),
+  onOpenWheel: () => { audio.sfx("click"); openWheelScreen(); },
+  onOpenMiniBox: () => handleOpenMiniBox(),
+  onRedeemVoucher: (id) => handleRedeemVoucher(id),
+};
+function refreshShop() {
+  renderShop(profile, listBoxes(), shopHandlers);
+  setShopTab(shopTab);
+}
 function openShopScreen() {
   showScreen("screen-shop");
-  renderShop(profile, listBoxes(), handleBuyBox);
+  refreshShop();
   el("#creator-code-message").classList.add("hidden");
   el("#creator-code-input").value = "";
 }
@@ -181,13 +230,82 @@ function openShopScreen() {
 function handleBuyBox(boxId) {
   audio.sfx("click");
   const result = purchaseBox(profile, boxId, Math.random);
+  if (!result.success) return;
   saveProfile(profile);
   renderProfileSummary(profile);
   playBoxOpeningAnimation(result).then(() => {
-    renderShop(profile, listBoxes(), handleBuyBox);
-    renderProfileSummary(profile);
+    refreshShop();
     renderSkinBadge(profile.equippedSkin ?? "mario");
+    afterProgress();
   });
+}
+
+function handleOpenMiniBox() {
+  audio.sfx("click");
+  const result = buyMiniBox(profile, Math.random);
+  if (!result.success) return;
+  saveProfile(profile);
+  playMiniBox(result, audio).then(() => { refreshShop(); afterProgress(); });
+}
+
+function handleRedeemVoucher(boxId) {
+  audio.sfx("click");
+  const result = redeemVoucher(profile, boxId, Math.random);
+  if (!result.success) return;
+  saveProfile(profile);
+  playBoxOpeningAnimation(result).then(() => {
+    refreshShop();
+    renderSkinBadge(profile.equippedSkin ?? "mario");
+    afterProgress();
+  });
+}
+
+// --- Profil ---------------------------------------------------------------
+const profileHandlers = {
+  onSaveName(raw) {
+    const v = validateNickname(raw);
+    if (!v.ok) { showNickMessage(v.reason, false); return; }
+    profile.nickname = v.name;
+    saveProfile(profile);
+    audio.sfx("unlockRare");
+    // Name auch in der Rangliste anmelden; bei Namenskonflikt ehrlich melden
+    submitMyScore(profile).then((r) => {
+      if (!r.ok && r.error === "name-taken") showNickMessage(ERROR_TEXT["name-taken"], false);
+    });
+    renderProfileSummary(profile);
+    showNickMessage(`Name gespeichert: ${v.name}`, true);
+  },
+  onEquip(cat, id) {
+    audio.sfx("click");
+    if (!equipCosmetic(profile, cat, id)) return;
+    saveProfile(profile);
+    openProfileScreen();
+    renderProfileSummary(profile);
+  },
+};
+function openProfileScreen() {
+  showScreen("screen-profile");
+  renderProfile(profile, profileHandlers);
+}
+
+// --- Rangliste (echt, Server-basiert - keine Fake-Einträge) ----------------
+let lbRequestId = 0;
+function openLeaderboardScreen() {
+  showScreen("screen-leaderboard");
+  const my = ++lbRequestId;
+  renderLeaderboard(profile, { status: "loading" });
+  const done = (r) => {
+    if (my !== lbRequestId) return;
+    if (!r.ok) {
+      renderLeaderboard(profile, { status: "error", message: ERROR_TEXT[r.error] ?? "Rangliste konnte nicht geladen werden." });
+      el("#btn-lb-retry")?.addEventListener("click", openLeaderboardScreen);
+      return;
+    }
+    renderLeaderboard(profile, { status: "ok", top: r.top, total: r.total, me: r.me ?? null });
+    el("#btn-lb-profile")?.addEventListener("click", () => { audio.sfx("click"); openProfileScreen(); });
+  };
+  // Mit Namen: eigenen Stand melden (liefert gleich den eigenen Platz). Ohne Namen: nur lesen.
+  (profile.nickname ? submitMyScore(profile) : fetchTop()).then(done);
 }
 
 function handleRedeemCreatorCode() {
@@ -202,9 +320,9 @@ function handleRedeemCreatorCode() {
 
   msg.classList.remove("hidden", "creator-code-message--success", "creator-code-message--error");
   if (res.success) {
-    saveProfile(profile);
+    afterProgress();
     audio.sfx("unlockRare");
-    renderProfileSummary(profile);
+    refreshShop();
     msg.textContent = `Creator Code ${res.label} aktiviert! +${res.reward.coins} Münzen`;
     msg.classList.add("creator-code-message--success");
     input.value = "";
@@ -235,11 +353,9 @@ document.addEventListener("DOMContentLoaded", () => {
   el("#btn-daily-claim").addEventListener("click", () => {
     const res = claimDaily(profile);
     if (!res.success) return; // Button ist ohnehin disabled, wenn schon abgeholt
-    saveProfile(profile);
     audio.sfx("unlockRare");
-    renderProfileSummary(profile);
     renderDailyStatus(false, res.streakDay, res.streakDay, ""); // Button sperren, Vorschau ausblenden
-    refreshHomeBadges();
+    afterProgress();
 
     if (res.reward.type === "box") {
       // Gratis-Box (Jackpot-Tag) - tatsächlich öffnen und die echte
@@ -248,8 +364,8 @@ document.addEventListener("DOMContentLoaded", () => {
       saveProfile(profile);
       playBoxOpeningAnimation(boxResult).then(() => {
         renderDailyClaimed(describeReward(res.reward) + (boxResult.isNew ? ` (${boxResult.skin.name})` : ` - Duplikat, +${boxResult.compensationCoins} 🪙`), res.streakDay);
-        renderProfileSummary(profile);
         renderSkinBadge(profile.equippedSkin ?? "mario");
+        afterProgress();
       });
     } else {
       renderDailyClaimed(describeReward(res.reward), res.streakDay);
@@ -260,6 +376,10 @@ document.addEventListener("DOMContentLoaded", () => {
   el("#btn-wheel-spin").addEventListener("click", handleWheelSpin);
   el("#btn-missions").addEventListener("click", () => { audio.sfx("click"); openMissionsScreen(); });
   el("#btn-shop").addEventListener("click", () => { audio.sfx("click"); openShopScreen(); });
+  el("#btn-profile").addEventListener("click", () => { audio.sfx("click"); openProfileScreen(); });
+  el("#profile-summary").addEventListener("click", () => { audio.sfx("click"); openProfileScreen(); });
+  el("#btn-leaderboard").addEventListener("click", () => { audio.sfx("click"); openLeaderboardScreen(); });
+  document.querySelectorAll("#shop-tabs .tab").forEach((t) => t.addEventListener("click", () => { audio.sfx("click"); shopTab = t.dataset.tab; setShopTab(shopTab); }));
   el("#btn-creator-code-redeem").addEventListener("click", handleRedeemCreatorCode);
   el("#creator-code-input").addEventListener("keydown", (e) => { if (e.key === "Enter") handleRedeemCreatorCode(); });
 
@@ -292,7 +412,7 @@ document.addEventListener("DOMContentLoaded", () => {
   });
 
   document.querySelectorAll("[data-back]").forEach((btn) => {
-    btn.addEventListener("click", () => { audio.sfx("click"); showScreen(btn.dataset.back); });
+    btn.addEventListener("click", () => { audio.sfx("click"); destroyProfileAvatar(); showScreen(btn.dataset.back); if (btn.dataset.back === "screen-menu") { refreshHomeBadges(); renderProfileSummary(profile); } });
   });
 
   // --- ONLINE --------------------------------------------------------------
@@ -302,7 +422,7 @@ document.addEventListener("DOMContentLoaded", () => {
     audio.sfx("click");
     setupSocketHandlers();
     ensureConnected()
-      .then(() => socket.send("createRoom", { name: myOnlineName, skinId: (profile.equippedSkin ?? getStarterSkin().id) }))
+      .then(() => socket.send("createRoom", { name: onlineName(), skinId: (profile.equippedSkin ?? getStarterSkin().id) }))
       .catch(() => alert("Verbindung zum Server fehlgeschlagen. Server erreichbar?"));
   });
 
@@ -315,7 +435,7 @@ document.addEventListener("DOMContentLoaded", () => {
     if (!code) return;
     setupSocketHandlers();
     ensureConnected()
-      .then(() => socket.send("joinRoom", { code, name: myOnlineName, skinId: (profile.equippedSkin ?? getStarterSkin().id) }))
+      .then(() => socket.send("joinRoom", { code, name: onlineName(), skinId: (profile.equippedSkin ?? getStarterSkin().id) }))
       .catch(() => alert("Verbindung zum Server fehlgeschlagen. Server erreichbar?"));
   });
 
@@ -333,6 +453,13 @@ document.addEventListener("DOMContentLoaded", () => {
   });
 
   populateLobbyGameSelect();
+  if (profile.nickname) autoSync(profile);
+  // Neues Konto: einmalig Namen abfragen; nach einem Komplett-Reset kurz erklären
+  if (!profile.welcomed) {
+    profile.welcomed = true; saveProfile(profile);
+    openProfileScreen();
+    showNickMessage(wasReset ? "Neustart: Alle Spielstände wurden zurückgesetzt – du startest bei null! Wähle deinen Spielernamen." : "Willkommen! Wähle deinen Spielernamen.", true);
+  }
   renderSkinBadge((profile.equippedSkin ?? getStarterSkin().id));
   renderProfileSummary(profile);
   refreshHomeBadges();
@@ -342,7 +469,7 @@ document.addEventListener("DOMContentLoaded", () => {
 
 function populateLobbyGameSelect() {
   const select = el("#lobby-game");
-  select.innerHTML = ARCADE_GAMES.map((g) => `<option value="${g.id}">${g.icon} ${g.name}</option>`).join("");
+  select.innerHTML = ARCADE_GAMES.filter((g) => !g.soloOnly).map((g) => `<option value="${g.id}">${g.icon} ${g.name}</option>`).join("");
 }
 
 function applySettingsToAudio() {
@@ -437,6 +564,8 @@ let myPlayerId = null;
 let iAmHost = false;
 let socketHandlersReady = false;
 let onlineActiveGame = null;
+let onlineGameId = null;
+let pendingOnline = null;
 
 function ensureConnected() {
   if (socket.connected) return Promise.resolve();
@@ -500,6 +629,8 @@ function renderLobby(state) {
 
 function startOnlineRound(gameId, seed) {
   const meta = getArcadeGame(gameId);
+  onlineGameId = gameId;
+  pendingOnline = null;
   showScreen("screen-online-game");
   el("#online-play-title").textContent = meta ? `${meta.icon} ${meta.name}` : "";
   el("#online-score").textContent = "0";
@@ -537,6 +668,7 @@ function updateOnlineHud(patch) {
 function finishOnlineRound(result) {
   onlineActiveGame = null;
   el("#online-stage").classList.add("hidden");
+  pendingOnline = result;
   el("#online-waiting-score").textContent = result.resultLabel ?? `${result.score} PUNKTE`;
   el("#online-waiting").classList.remove("hidden");
   audio.sfx("treasure");
@@ -555,14 +687,22 @@ function renderOnlineResult(results) {
       </div>
     `).join("");
 
-  // Eigene Münzen/XP fürs Ergebnis der Online-Runde gutschreiben (kleiner,
-  // pauschaler Bonus - die Feinabstimmung passiert weiterhin im SOLO-Modus).
-  if (me) {
+  // Online-Runde zählt wie eine MITTEL-Runde (gleiches Belohnungssystem,
+  // Party-Punkte, Meilensteine) + Platzierungsbonus.
+  if (me && pendingOnline && onlineGameId) {
     const placement = results.findIndex((r) => r.id === myPlayerId);
-    const bonus = placement === 0 ? 40 : placement === 1 ? 25 : placement === 2 ? 15 : 8;
-    grantCoins(profile, bonus);
-    saveProfile(profile);
-    renderProfileSummary(profile);
+    const placeCoins = placement === 0 ? 120 : placement === 1 ? 80 : placement === 2 ? 50 : 25;
+    const placeXp = placement === 0 ? 60 : placement === 1 ? 40 : 25;
+    const meta = getArcadeGame(onlineGameId);
+    const tier = rewardTierFromPercent(pendingOnline.percent ?? 0);
+    applyRound(profile, {
+      gameId: onlineGameId, xpEarned: tier.xp + placeXp, coinsEarned: tier.coins + placeCoins,
+      score: pendingOnline.score, maxCombo: pendingOnline.maxCombo ?? 0, tier: tier.tier,
+      difficulty: "normal", percent: pendingOnline.percent ?? 0, won: !!pendingOnline.won,
+      lowerIsBetter: !!meta?.lowerIsBetter, online: true,
+    });
+    pendingOnline = null;
+    afterProgress();
   }
 
   const actions = el("#online-result-actions");

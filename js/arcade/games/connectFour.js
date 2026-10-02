@@ -226,7 +226,7 @@ export function start({ container, skinId, rng, onHud, onEnd, difficulty = "norm
     else { score = humanMoves * 2; percent = 15; }
     const t = setTimeout(() => {
       cleanup();
-      onEnd({ score, percent, maxCombo: win ? 4 : 0, resultLabel: `${win ? "SIEG" : draw ? "REMIS" : "NIEDERLAGE"} · ${score} PUNKTE` });
+      onEnd({ score, percent, won: win, maxCombo: win ? 4 : 0, resultLabel: `${win ? "SIEG" : draw ? "REMIS" : "NIEDERLAGE"} · ${score} PUNKTE` });
     }, 1400);
     timers.add(t);
   }

@@ -7,23 +7,55 @@ import { createServer } from "http";
 import { WebSocketServer } from "ws";
 import { PartyMinigameRoom, ROUND_TIMEOUT_MS } from "./partyMinigame.js";
 import { recordRedemption, getCreatorCodeStats } from "./creatorCodeStats.js";
+import { getTop, submitScore } from "./leaderboard.js";
 
 const PORT = process.env.PORT || 3001;
 // Ohne gesetzten ADMIN_KEY ist der Statistik-Endpunkt komplett deaktiviert -
 // bewusst kein offener Zugriff "für alle" (siehe Punkt 7 des Prompts).
 const ADMIN_KEY = process.env.ADMIN_KEY || null;
 
-const httpServer = createServer((req, res) => {
+const CORS = {
+  "Access-Control-Allow-Origin": "*", // Client liegt auf GitHub Pages (andere Domain)
+  "Access-Control-Allow-Methods": "GET, POST, OPTIONS",
+  "Access-Control-Allow-Headers": "Content-Type",
+};
+function json(res, status, obj) {
+  res.writeHead(status, { "Content-Type": "application/json", ...CORS });
+  res.end(JSON.stringify(obj));
+}
+function readBody(req, limit = 2048) {
+  return new Promise((resolve, reject) => {
+    let data = "";
+    req.on("data", (c) => { data += c; if (data.length > limit) { reject(new Error("too-large")); req.destroy(); } });
+    req.on("end", () => { try { resolve(JSON.parse(data || "{}")); } catch { reject(new Error("bad-json")); } });
+    req.on("error", reject);
+  });
+}
+
+const httpServer = createServer(async (req, res) => {
   const url = new URL(req.url, "http://localhost");
+  if (req.method === "OPTIONS") { res.writeHead(204, CORS); res.end(); return; }
   if (url.pathname === "/health") {
-    res.writeHead(200, { "Content-Type": "application/json" });
-    res.end(JSON.stringify({ status: "ok", rooms: rooms.size }));
+    json(res, 200, { status: "ok", rooms: rooms.size });
+    return;
+  }
+  // --- Gesamt-Rangliste (Party-Punkte) ---
+  if (url.pathname === "/leaderboard" && req.method === "GET") {
+    json(res, 200, getTop(50));
+    return;
+  }
+  if (url.pathname === "/leaderboard/submit" && req.method === "POST") {
+    try {
+      const out = submitScore(await readBody(req));
+      json(res, out.error ? 400 : 200, out);
+    } catch (err) {
+      json(res, 400, { error: err.message });
+    }
     return;
   }
   if (url.pathname === "/admin/creator-codes") {
     if (!ADMIN_KEY || url.searchParams.get("key") !== ADMIN_KEY) {
-      res.writeHead(403, { "Content-Type": "application/json" });
-      res.end(JSON.stringify({ error: "Nicht autorisiert." }));
+      json(res, 403, { error: "Nicht autorisiert." });
       return;
     }
     res.writeHead(200, { "Content-Type": "application/json" });

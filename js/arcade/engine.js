@@ -105,10 +105,12 @@ export class ComboTracker {
 // Bewusst grobstufig und transparent statt einer Blackbox-Formel (analog zum
 // bereits vorhandenen Mystery-Box-Prinzip "keine versteckten Zahlen").
 export function rewardTierFromPercent(percent) {
-  if (percent >= 85) return { tier: "perfekt", label: "PERFEKT!", xp: 120, coins: 25 };
-  if (percent >= 65) return { tier: "gut", label: "STARK!", xp: 80, coins: 15 };
-  if (percent >= 40) return { tier: "normal", label: "GESCHAFFT", xp: 50, coins: 10 };
-  return { tier: "schwach", label: "VERSUCHT", xp: 25, coins: 5 };
+  // Münzen/XP pro Runde (neu ausbalanciert): eine gute Runde fühlt sich spürbar
+  // nach etwas an, während Skins über die Box-Drop-Raten selten bleiben.
+  if (percent >= 85) return { tier: "perfekt", label: "PERFEKT!", xp: 90, coins: 100 };
+  if (percent >= 65) return { tier: "gut", label: "STARK!", xp: 65, coins: 68 };
+  if (percent >= 40) return { tier: "normal", label: "GESCHAFFT", xp: 45, coins: 40 };
+  return { tier: "schwach", label: "VERSUCHT", xp: 25, coins: 18 };
 }
 
 // --- Zufalls-Modifikatoren, damit Runden nicht gleich bleiben (Punkt 6) ---

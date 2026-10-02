@@ -160,7 +160,7 @@ export function start({ container, skinId, rng, onHud, onEnd, difficulty = "norm
     const efficiency = clamp(1 - (moves - par) / (par * 1.5), 0, 1);
     const score = n * 20 + Math.round(efficiency * 60);
     const percent = Math.round(55 + efficiency * 45);
-    finishLater({ score, percent, maxCombo: n, resultLabel: `GELÖST in ${moves} Zügen · ${score} PUNKTE` });
+    finishLater({ score, percent, won: true, maxCombo: n, resultLabel: `GELÖST in ${moves} Zügen · ${score} PUNKTE` });
   }
   function lose() {
     running = false;

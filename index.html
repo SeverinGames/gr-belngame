@@ -22,7 +22,7 @@
         <p class="tagline">Willkommen in der Big Sevis Minispiel Party – welches Spiel wagst du?</p>
         <div id="hero-skin-preview" class="hero-skin-preview"></div>
         <div id="skin-badge" class="skin-badge"></div>
-        <div id="profile-summary" class="profile-summary"></div>
+        <button id="profile-summary" class="profile-summary" aria-label="Profil öffnen"></button>
       </div>
       <button id="btn-play" class="btn btn--arcade">🎮 SOLO</button>
       <button id="btn-online" class="btn btn--primary">🌐 ONLINE</button>
@@ -31,6 +31,8 @@
         <button id="btn-locker" class="btn btn--secondary">👤 SPIND</button>
         <button id="btn-missions" class="btn btn--secondary">🎯 MISSIONEN</button>
         <button id="btn-daily" class="btn btn--secondary">🎁 BELOHNUNG</button>
+        <button id="btn-profile" class="btn btn--secondary">🪪 PROFIL</button>
+        <button id="btn-leaderboard" class="btn btn--secondary">🏆 RANGLISTE</button>
         <button id="btn-wheel" class="btn btn--secondary btn--wide">🎡 GLÜCKSRAD</button>
       </div>
       <button id="btn-settings" class="btn btn--ghost">⚙️ Einstellungen</button>
@@ -39,7 +41,6 @@
     <!-- SOLO: Minispiel wählen -> Schwierigkeit -> Start (kein Türen-System mehr) -->
     <section id="screen-arcade" class="screen hidden">
       <h2>Solo · Minispiel wählen</h2>
-      <p class="arcade-subtitle">Kurz, knackig, mit deinem Skin im Mittelpunkt.</p>
       <div id="arcade-game-list" class="arcade-game-list"></div>
       <button class="btn btn--secondary" data-back="screen-menu">Zurück</button>
     </section>
@@ -48,11 +49,10 @@
       <h2>Schwierigkeit wählen</h2>
       <p id="arcade-difficulty-gamename" class="arcade-subtitle"></p>
       <div class="difficulty-grid">
-        <button class="btn btn--secondary" data-arcade-difficulty="easy">😌 Leicht</button>
-        <button class="btn btn--secondary" data-arcade-difficulty="normal">🙂 Normal</button>
-        <button class="btn btn--secondary" data-arcade-difficulty="hard">🔥 Schwer</button>
+        <button class="btn btn--secondary diff-btn" data-arcade-difficulty="easy"><span class="diff-btn__label">😌 LEICHT</span><span class="diff-btn__best"></span></button>
+        <button class="btn btn--secondary diff-btn" data-arcade-difficulty="normal"><span class="diff-btn__label">🙂 MITTEL</span><span class="diff-btn__best"></span></button>
+        <button class="btn btn--secondary diff-btn" data-arcade-difficulty="hard"><span class="diff-btn__label">🔥 SCHWER</span><span class="diff-btn__best"></span></button>
       </div>
-      <p class="arcade-difficulty-hint">Schwer verlangt mehr Leistung für die volle Belohnungsstufe, gibt dafür spürbar mehr Münzen &amp; XP.</p>
       <button class="btn btn--secondary" data-back="screen-arcade">Zurück</button>
     </section>
 
@@ -72,21 +72,42 @@
       <div id="arcade-result" class="arcade-result hidden"></div>
     </section>
 
-    <!-- SHOP: Münzen gegen Boxen tauschen (ersetzt das alte Schlüssel-System) -->
+    <!-- SHOP: Boxen, Glücksrad, Bonus (Mini-Box, Tagesziele, Creator Code), Sammlung -->
     <section id="screen-shop" class="screen hidden">
       <h2>Shop</h2>
       <div id="shop-coins" class="shop-coins">0 🪙</div>
-      <div id="shop-box-list" class="shop-box-list"></div>
-
-      <div class="creator-code-box">
-        <h3>Creator Code</h3>
-        <div class="creator-code-row">
-          <input id="creator-code-input" class="text-input" placeholder="Creator Code eingeben..." maxlength="20" autocapitalize="characters" />
-          <button id="btn-creator-code-redeem" class="btn btn--primary">Einlösen</button>
-        </div>
-        <p id="creator-code-message" class="creator-code-message hidden"></p>
+      <div id="shop-tabs" class="tabs">
+        <button class="tab tab--active" data-tab="boxes">BOXEN</button>
+        <button class="tab" data-tab="wheel">RAD</button>
+        <button class="tab" data-tab="bonus">BONUS</button>
+        <button class="tab" data-tab="collection">SAMMLUNG</button>
       </div>
+      <div id="shop-tab-boxes" class="shop-tab"><div id="shop-box-list" class="shop-box-list"></div></div>
+      <div id="shop-tab-wheel" class="shop-tab hidden"></div>
+      <div id="shop-tab-bonus" class="shop-tab hidden">
+        <div id="shop-bonus-body"></div>
+        <div class="creator-code-box">
+          <h3>Creator Code</h3>
+          <div class="creator-code-row">
+            <input id="creator-code-input" class="text-input" placeholder="Creator Code eingeben..." maxlength="20" autocapitalize="characters" />
+            <button id="btn-creator-code-redeem" class="btn btn--primary">Einlösen</button>
+          </div>
+          <p id="creator-code-message" class="creator-code-message hidden"></p>
+        </div>
+      </div>
+      <div id="shop-tab-collection" class="shop-tab hidden"><div id="shop-collection-body"></div></div>
+      <button class="btn btn--secondary" data-back="screen-menu">Zurück</button>
+    </section>
 
+    <section id="screen-profile" class="screen hidden">
+      <h2>Profil</h2>
+      <div id="profile-body"></div>
+      <button class="btn btn--secondary" data-back="screen-menu">Zurück</button>
+    </section>
+
+    <section id="screen-leaderboard" class="screen hidden">
+      <h2>Rangliste</h2>
+      <div id="leaderboard-body"></div>
       <button class="btn btn--secondary" data-back="screen-menu">Zurück</button>
     </section>
 
@@ -204,6 +225,9 @@
   </div>
 
   <footer class="site-footer">© Sevi 2026</footer>
+
+  <!-- Erfolgserlebnisse: Meilenstein-Hinweise, LEVEL UP, Mini-Box -->
+  <div id="celebrate-root" class="celebrate-root"><div class="toast-stack"></div><div class="modal-layer"></div></div>
 
   <!-- Box-Öffnungsanimation: über allem, komplett eigener Ablauf -->
   <div id="mysterybox-animation" class="mb-overlay hidden">

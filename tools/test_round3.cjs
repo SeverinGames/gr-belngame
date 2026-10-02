@@ -104,14 +104,14 @@ const { chromium } = require('playwright');
   await page.waitForTimeout(150);
   await page.click('#btn-shop');
   await page.waitForTimeout(150);
-  const coinsBefore = await page.evaluate(() => JSON.parse(localStorage.getItem('nwo_profile_v1') || '{"coins":0}').coins);
+  const coinsBefore = await page.evaluate(() => JSON.parse(localStorage.getItem('nwo_profile_v2') || '{"coins":0}').coins);
   await page.fill('#creator-code-input', 'BRÜSHKA');
   await page.click('#btn-creator-code-redeem');
   await page.waitForTimeout(1200); // Zeit für WS-Verbindung
   const msg1 = await page.locator('#creator-code-message').textContent();
   console.log('Creator Code BRÜSHKA:', msg1);
   if (!msg1.includes('aktiviert')) errors.push('Creator Code BRÜSHKA (mit Ü) wurde nicht akzeptiert: ' + msg1);
-  const coinsAfter1 = await page.evaluate(() => JSON.parse(localStorage.getItem('nwo_profile_v1') || '{"coins":0}').coins);
+  const coinsAfter1 = await page.evaluate(() => JSON.parse(localStorage.getItem('nwo_profile_v2') || '{"coins":0}').coins);
   if (coinsAfter1 <= coinsBefore) errors.push('BRÜSHKA-Belohnung wurde nicht gutgeschrieben');
 
   await page.fill('#creator-code-input', 'BRUESHKA');
