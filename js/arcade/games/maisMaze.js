@@ -9,7 +9,7 @@
 export const MAZE_LEVELS = {
   easy: { size: 7, len: [12, 14], turns: [2, 4], branches: 2, branchLen: [1, 2], landmarks: 6, repeatLandmarks: false, obsSpeed: 3.8, timeFactor: 4.0 },
   normal: { size: 9, len: [20, 24], turns: [6, 9], branches: 5, branchLen: [1, 3], landmarks: 8, repeatLandmarks: false, obsSpeed: 5.4, timeFactor: 3.4 },
-  hard: { size: 11, len: [30, 36], turns: [10, 15], branches: 9, branchLen: [2, 4], landmarks: 8, repeatLandmarks: true, obsSpeed: 7.4, timeFactor: 3.0 },
+  hard: { size: 15, len: [46, 56], turns: [16, 24], branches: 14, branchLen: [2, 5], landmarks: 14, repeatLandmarks: true, obsSpeed: 7.8, timeFactor: 2.9 },
 };
 export const DIRS = [[0, -1], [1, 0], [0, 1], [-1, 0]]; // N, O, S, W
 export const LANDMARK_TYPES = ["windmill", "silo", "balloon", "flag", "sunflower", "tower", "scarecrow", "barn"];
@@ -18,7 +18,7 @@ const key = (x, y) => `${x},${y}`;
 
 export function generateMaze(difficulty, rng = Math.random) {
   const L = MAZE_LEVELS[difficulty] ?? MAZE_LEVELS.normal;
-  for (let attempt = 0; attempt < 400; attempt++) {
+  for (let attempt = 0; attempt < 600; attempt++) {
     const m = tryGenerate(L, rng);
     if (m) return m;
   }
@@ -38,6 +38,7 @@ function tryGenerate(L, rng) {
     }
     return true;
   };
+  const nodeBudget = L.size >= 15 ? 60000 : 6000;
   const targetLen = L.len[0] + Math.floor(rng() * (L.len[1] - L.len[0] + 1));
   const sx = 1 + Math.floor(rng() * (N - 2));
   const start = [sx, N - 1]; // Südkante, Blick nach Norden
@@ -48,7 +49,7 @@ function tryGenerate(L, rng) {
 
   function dfs(dirIdx) {
     if (path.length === targetLen) return countTurns(path) >= L.turns[0] && countTurns(path) <= L.turns[1];
-    if (++nodes > 6000) return false;
+    if (++nodes > nodeBudget) return false;
     const [cx, cy] = path[path.length - 1];
     const order = path.length === 1 ? [0] : shuffle([0, 1, 2, 3]); // erster Schritt nach Norden
     for (const d of order) {
@@ -138,8 +139,8 @@ function placeLandmarks(maze, L, rng) {
   const palette = [0, 1, 2, 3];
   return chosen.map((s, i) => {
     // SCHWER: nur wenige Typen/Farben -> ähnliche Abschnitte, man muss genauer hinsehen
-    const type = L.repeatLandmarks ? types[i % 4] : types[i % types.length];
-    const tint = L.repeatLandmarks ? palette[(i >> 1) % 2] : palette[i % 4];
+    const type = L.repeatLandmarks ? types[i % 6] : types[i % types.length];
+    const tint = L.repeatLandmarks ? palette[(i + (i >> 2)) % 3] : palette[i % 4];
     return { x: s.x, y: s.y, type, tint, rot: rng() * Math.PI * 2 };
   });
 }

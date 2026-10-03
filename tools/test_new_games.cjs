@@ -40,20 +40,38 @@ async function open(page, name, diff) {
     check(`Color Trick ${d}: ${n} Farbkleckse, ohne Farbnamen/Text`, info.n === n && info.text === "", JSON.stringify(info.colors));
     check(`Color Trick ${d}: alle Klekse verschieden`, new Set(info.colors).size === n);
     if (d === "normal") {
-      // Die richtige Antwort = Farbe der Schrift (nicht das Wort). Alle 12 Runden korrekt lösen.
-      let right = 0;
+      // Regel: richtig ist die Farbe, die das WORT nennt (Schriftfarbe = Ablenkung, nie die Lösung)
+      const WORD = { ROT: "rgb(255, 59, 78)", BLAU: "rgb(47, 140, 255)", "GRÜN": "rgb(47, 209, 111)", GELB: "rgb(255, 210, 31)", LILA: "rgb(169, 91, 255)", ORANGE: "rgb(255, 138, 31)", PINK: "rgb(255, 95, 196)", "TÜRKIS": "rgb(31, 214, 204)" };
+      let right = 0, inkNeverCorrect = true;
       for (let r = 0; r < 12; r++) {
-        const ok = await page.evaluate(() => {
-          const ink = getComputedStyle(document.querySelector(".ct-word")).color;
-          const b = [...document.querySelectorAll(".ct-blob")].find((x) => getComputedStyle(x).backgroundColor === ink);
-          if (b) { b.click(); return true; } return false;
-        });
-        if (ok) right++;
+        const info = await page.evaluate((WORD) => {
+          const w = document.querySelector(".ct-word"), want = WORD[w.textContent.trim()], ink = getComputedStyle(w).color;
+          const blobs = [...document.querySelectorAll(".ct-blob")];
+          const hit = blobs.find((x) => getComputedStyle(x).backgroundColor === want);
+          return { hit: !!hit, inkIsWord: ink === want, ids: blobs.map((b) => b.dataset.color), target: w.dataset.target, hitId: hit?.dataset.color };
+        }, WORD);
+        if (info.inkIsWord) inkNeverCorrect = false; // Schriftfarbe darf nie gleich der gesuchten Farbe sein
+        if (info.hit && info.hitId === info.target) right++;
+        await page.evaluate((WORD) => { const w = document.querySelector(".ct-word"), want = WORD[w.textContent.trim()]; [...document.querySelectorAll(".ct-blob")].find((x) => getComputedStyle(x).backgroundColor === want)?.click(); }, WORD);
         await page.waitForTimeout(420);
       }
       await page.waitForSelector("#arcade-result:not(.hidden) .arcade-result__card", { timeout: 6000 });
       const txt = await page.locator("#arcade-result").innerText();
-      check("Color Trick: Schriftfarbe wählen = richtig (12/12, PERFEKT)", right === 12 && /PERFEKT/.test(txt), `${right}/12`);
+      check("Color Trick: Farbe des WORTES wählen = richtig (12/12, PERFEKT)", right === 12 && /PERFEKT/.test(txt), `${right}/12`);
+      check("Color Trick: Schriftfarbe ist nie die Lösung", inkNeverCorrect);
+      // Falsch: Schriftfarbe anklicken wird als Fehler gewertet
+      await open(page, "Color Trick", "normal"); await page.waitForTimeout(300);
+      const wrongRes = await page.evaluate(async () => {
+        let wrong = 0;
+        for (let r = 0; r < 4; r++) {
+          const w = document.querySelector(".ct-word"), ink = getComputedStyle(w).color, tId = w.dataset.target;
+          const b = [...document.querySelectorAll(".ct-blob")].find((x) => getComputedStyle(x).backgroundColor === ink && x.dataset.color !== tId);
+          if (b) { b.click(); wrong++; await new Promise((r) => setTimeout(r, 400)); const cls = [...document.querySelectorAll(".ct-blob")].length; }
+        }
+        return wrong;
+      });
+      check("Color Trick: Klick auf Schriftfarben-Klecks wird nicht als richtig gewertet", wrongRes >= 1 ? await page.evaluate(() => document.querySelector("#arcade-score").textContent) === "0" : true);
+      await page.click("#btn-arcade-quit"); await page.waitForTimeout(100);
     }
   }
 
@@ -142,7 +160,7 @@ async function open(page, name, diff) {
     const lcBefore = await page.evaluate(() => window.__lc);
     await open(page, "Maze", d); await page.waitForTimeout(300);
     const dims = await page.evaluate(() => ({ T: window.__maze.maze.T, shortest: window.__maze.maze.shortest }));
-    check(`Maze ${d}: Labyrinth ${dims.T}x${dims.T} Blöcke, Weg ${dims.shortest}`, dims.T === { easy: 13, normal: 19, hard: 25 }[d]);
+    check(`Maze ${d}: Labyrinth ${dims.T}x${dims.T} Blöcke, Weg ${dims.shortest}`, dims.T === { easy: 13, normal: 19, hard: 31 }[d]);
     if (d === "hard") { await page.screenshot({ path: "/tmp/maze_hard.png" }); }
     if (d === "easy" || d === "normal") {
       await page.evaluate(() => {

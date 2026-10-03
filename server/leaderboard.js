@@ -30,7 +30,6 @@ const MAX_PP = 40000; // Obergrenze für plausible Party-Punkte
 const MAX_ENTRIES = 5000;
 const MIN_SUBMIT_GAP_MS = 1500;
 const NAME_RE = /^[A-Za-z0-9ÄÖÜäöüß _\-.]{3,14}$/;
-const EMOTES = new Set(["😎", "🥳", "🤩", "😈", "🦄", "🤯"]);
 
 let entries = new Map(); // id -> { id, name, pp, level, title, emote, updated }
 const lastSubmit = new Map(); // id -> ms
@@ -58,15 +57,49 @@ const hashKey = (key) => createHash("sha256").update(String(key)).digest("hex").
 function sorted() {
   return [...entries.values()].sort((a, b) => b.pp - a.pp || a.updated - b.updated);
 }
-const pub = (e, rank) => ({ rank, name: e.name, pp: e.pp, level: e.level, title: e.title, emote: e.emote });
+const pub = (e, rank) => ({ rank, id: e.id, name: e.name, pp: e.pp, level: e.level, title: e.title, emote: e.emote });
 
 export function getTop(limit = 50) {
   const all = sorted();
   return { total: all.length, top: all.slice(0, limit).map((e, i) => pub(e, i + 1)) };
 }
 
+// --- Öffentliches Profil: nur whitelistete, harmlose Felder (KEINE Münzen, Schlüssel, Codes ...) ---
+const ID_RE = /^[a-z0-9_]{1,24}$/;
+const CATS = ["badge", "title", "frame", "emote", "effect", "finish", "nameColor"];
+const num = (v, max = 1e9) => Math.max(0, Math.min(max, Math.round(Number(v)) || 0));
+export function sanitizeProfile(p) {
+  if (!p || typeof p !== "object") return null;
+  const loadout = {};
+  for (const c of CATS) { const v = p.loadout?.[c]; loadout[c] = typeof v === "string" && ID_RE.test(v) ? v : null; }
+  const hs = {};
+  if (p.hs && typeof p.hs === "object") {
+    for (const [g, v] of Object.entries(p.hs).slice(0, 30)) {
+      if (!ID_RE.test(g) || !v || typeof v !== "object") continue;
+      hs[g] = { easy: v.easy == null ? null : num(v.easy), normal: v.normal == null ? null : num(v.normal), hard: v.hard == null ? null : num(v.hard) };
+    }
+  }
+  const st = p.stats ?? {};
+  return {
+    skin: typeof p.skin === "string" && ID_RE.test(p.skin) ? p.skin : "mario",
+    level: Math.max(1, num(p.level, 999)), xp: num(p.xp, 100000),
+    loadout,
+    stats: { rounds: num(st.rounds), wins: num(st.wins), highscores: num(st.highscores), perfect: num(st.perfect), treasures: num(st.treasures), days: num(st.days) },
+    skins: num(p.skins, 50), cosmetics: num(p.cosmetics, 500),
+    badges: Array.isArray(p.badges) ? p.badges.filter((b) => typeof b === "string" && ID_RE.test(b)).slice(0, 60) : [],
+    hs,
+  };
+}
+
+export function getProfile(id) {
+  const e = entries.get(String(id));
+  if (!e) return null;
+  const rank = sorted().findIndex((x) => x.id === e.id) + 1;
+  return { rank, name: e.name, pp: e.pp, level: e.level, title: e.title, emote: e.emote, profile: e.profile ?? null };
+}
+
 export function submitScore(body, limit = 50) {
-  const { key, name, pp, level, title, emote } = body ?? {};
+  const { key, name, pp, level, title, emote, profile } = body ?? {};
   if (typeof key !== "string" || key.length < 16 || key.length > 100) return { error: "bad-key" };
   if (typeof name !== "string" || !NAME_RE.test(name.trim())) return { error: "bad-name" };
   const ppN = Math.round(Number(pp));
@@ -87,7 +120,8 @@ export function submitScore(body, limit = 50) {
     pp: ppN,
     level: Math.min(999, Math.max(1, Math.round(Number(level)) || 1)),
     title: typeof title === "string" ? title.slice(0, 24) : "",
-    emote: EMOTES.has(emote) ? emote : "",
+    emote: typeof emote === "string" && emote.length <= 8 ? emote : "",
+    profile: sanitizeProfile(profile),
     updated: prev && prev.pp === ppN ? prev.updated : now,
   });
   if (entries.size > MAX_ENTRIES) {

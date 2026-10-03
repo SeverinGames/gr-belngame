@@ -1,9 +1,9 @@
 // js/arcade/games/colorTrick.js
-// MINISPIEL - COLOR TRICK (neu). Oben steht ein Farbwort, z.B. "GRÜN", aber in
-// einer ANDEREN Tinte geschrieben (z.B. rot). Gesucht ist die TATSÄCHLICHE
-// FARBE DER SCHRIFT - nicht das, was das Wort sagt. Darunter gibt es nur
-// echte Farbkleckse (ohne Beschriftung, alle optisch gleichwertig): man muss
-// die Farbe wirklich erkennen und kann nichts "ablesen".
+// MINISPIEL - COLOR TRICK. Oben steht ein Farbwort, z.B. "GRÜN", aber in einer
+// ANDEREN Schriftfarbe (z.B. pink). Gesucht ist die Farbe, die das WORT nennt
+// (grün) - die Schriftfarbe ist reine Ablenkung und nie die Lösung. Darunter
+// gibt es nur echte Farbkleckse ohne Beschriftung, alle optisch gleichwertig.
+// Die Schriftfarbe taucht oft als Klecks auf (Falle), ist aber nie richtig.
 //
 // Schwierigkeit:
 //   LEICHT  3 klar verschiedene Farben, viel Zeit
@@ -47,7 +47,7 @@ export function start({ container, skinId, rng, onHud, onEnd, difficulty = "norm
 
   const stage = document.createElement("div");
   stage.className = "ct-playfield";
-  stage.innerHTML = `<div class="ct-avatar-row"></div><div class="ct-hint">Tippe die FARBE der Schrift!</div><div class="ct-word"></div><div class="ct-options"></div>`;
+  stage.innerHTML = `<div class="ct-avatar-row"></div><div class="ct-hint">Tippe die Farbe, die das WORT nennt!</div><div class="ct-word"></div><div class="ct-options"></div>`;
   container.appendChild(stage);
   const wordEl = stage.querySelector(".ct-word"), optionsEl = stage.querySelector(".ct-options");
   const avatar = mountSkinAvatar(stage.querySelector(".ct-avatar-row"), skinId, { size: 48 });
@@ -71,20 +71,20 @@ export function start({ container, skinId, rng, onHud, onEnd, difficulty = "norm
     round++;
     if (round > ROUNDS) { endGame(); return; }
     const time = clamp(L.time0 - round * L.step, L.min, L.time0);
-    const ink = pick(pool);                       // gesuchte Farbe = Farbe der Schrift
-    let word = pick(COLORS.filter((c) => !c.hardOnly));   // geschriebenes Wort
-    let guard = 0;
-    while (word.label === ink.label && rng() < 0.9 && guard++ < 8) word = pick(COLORS.filter((c) => !c.hardOnly));
-    wordEl.textContent = word.label;
+    const base = pool.filter((c) => !c.hardOnly);
+    const target = pick(base);                                  // gesuchte Farbe = was das WORT sagt
+    const others0 = pool.filter((c) => c.id !== target.id);
+    const ink = pick(others0);                                  // Schriftfarbe = nur Ablenkung (nie die Lösung)
+    wordEl.textContent = target.label;
     wordEl.style.color = ink.hex;
     wordEl.style.textShadow = `0 0 18px ${ink.hex}66`;
+    wordEl.dataset.target = target.id; // (nur für Tests)
 
-    // Antwortklekse: gesuchte Farbe + (meist) die Farbe, die das WORT nennt (Falle) + Ablenker
-    let opts = [ink];
-    const trap = pool.find((c) => c.label === word.label && c.id !== ink.id) ?? pool.find((c) => c.id === word.id);
-    if (trap && trap.id !== ink.id && rng() < L.trapChance) opts.push(trap);
+    // Antwortklekse: gesuchte Farbe + (meist) die Schriftfarbe als Falle + Ablenker
+    let opts = [target];
+    if (rng() < L.trapChance) opts.push(ink);
     const others = pool.filter((c) => !opts.includes(c));
-    if (difficulty === "hard") others.sort((a, b) => dist(a, ink) - dist(b, ink)); // sehr ähnliche Töne zuerst
+    if (difficulty === "hard") others.sort((a, b) => dist(a, target) - dist(b, target)); // sehr ähnliche Töne zuerst
     else for (let i = others.length - 1; i > 0; i--) { const j = Math.floor(rng() * (i + 1)); [others[i], others[j]] = [others[j], others[i]]; }
     while (opts.length < L.options && others.length) opts.push(others.shift());
     for (let i = opts.length - 1; i > 0; i--) { const j = Math.floor(rng() * (i + 1)); [opts[i], opts[j]] = [opts[j], opts[i]]; }
@@ -98,7 +98,7 @@ export function start({ container, skinId, rng, onHud, onEnd, difficulty = "norm
       b.dataset.color = c.id; // (nur für Tests; nicht sichtbar)
       b.style.setProperty("--c", c.hex);
       b.style.borderRadius = BLOB_SHAPES[(i + round) % BLOB_SHAPES.length];
-      b.addEventListener("click", () => choose(c.id === ink.id, b));
+      b.addEventListener("click", () => choose(c.id === target.id, b));
       optionsEl.appendChild(b);
     });
     clearTimeout(deadline);

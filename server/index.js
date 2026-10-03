@@ -7,7 +7,7 @@ import { createServer } from "http";
 import { WebSocketServer } from "ws";
 import { PartyMinigameRoom, ROUND_TIMEOUT_MS } from "./partyMinigame.js";
 import { recordRedemption, getCreatorCodeStats } from "./creatorCodeStats.js";
-import { getTop, submitScore } from "./leaderboard.js";
+import { getTop, submitScore, getProfile } from "./leaderboard.js";
 
 const PORT = process.env.PORT || 3001;
 // Ohne gesetzten ADMIN_KEY ist der Statistik-Endpunkt komplett deaktiviert -
@@ -23,7 +23,7 @@ function json(res, status, obj) {
   res.writeHead(status, { "Content-Type": "application/json", ...CORS });
   res.end(JSON.stringify(obj));
 }
-function readBody(req, limit = 2048) {
+function readBody(req, limit = 12288) {
   return new Promise((resolve, reject) => {
     let data = "";
     req.on("data", (c) => { data += c; if (data.length > limit) { reject(new Error("too-large")); req.destroy(); } });
@@ -42,6 +42,11 @@ const httpServer = createServer(async (req, res) => {
   // --- Gesamt-Rangliste (Party-Punkte) ---
   if (url.pathname === "/leaderboard" && req.method === "GET") {
     json(res, 200, getTop(50));
+    return;
+  }
+  if (url.pathname === "/leaderboard/profile" && req.method === "GET") {
+    const p = getProfile(url.searchParams.get("id") ?? "");
+    json(res, p ? 200 : 404, p ?? { error: "not-found" });
     return;
   }
   if (url.pathname === "/leaderboard/submit" && req.method === "POST") {

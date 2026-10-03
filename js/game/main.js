@@ -5,21 +5,22 @@
 // entfernt (siehe git-Historie/vorherige Version, falls es je gebraucht wird).
 import { getStarterSkin, getSkinById, SKINS, RARITY } from "../skins/skins.js";
 import {
-  renderSkinBadge, renderProfileSummary, renderMissions, renderDailyStatus,
-  renderDailyClaimed, showScreen,
+  renderSkinBadge, renderProfileSummary, showScreen,
 } from "../ui/ui.js";
-import { renderShop, setShopTab, renderProfile, showNickMessage, destroyProfileAvatar, renderLeaderboard } from "../ui/screens.js";
+import { renderShop, setShopTab, renderProfile, showNickMessage, destroyProfileAvatar, renderLeaderboard, renderPublicProfile, renderMissions } from "../ui/screens.js";
+import { refreshBadges } from "../progress/badges.js";
 import { celebrate, playMiniBox } from "../ui/celebrations.js";
 import { wasReset, loadProfile, saveProfile, grantRewards, unlockSkin, validateNickname } from "../rewards/profile.js";
-import { addSpin, addMiniBoxes } from "../progress/rewardOps.js";
+import { addSpin, addMiniBoxes, addVoucher } from "../progress/rewardOps.js";
+import { unlockCosmetic } from "../progress/cosmetics.js";
 import { checkMilestones } from "../progress/milestones.js";
 import { applyRound } from "../progress/roundResult.js";
 import { rewardTierFromPercent } from "../arcade/engine.js";
-import { equipCosmetic } from "../progress/cosmetics.js";
-import { fetchTop, submitMyScore, autoSync, ERROR_TEXT } from "../network/leaderboardClient.js";
+import { equipCosmetic, ensureCosmetics } from "../progress/cosmetics.js";
+import { fetchTop, submitMyScore, autoSync, fetchPublicProfile, ERROR_TEXT } from "../network/leaderboardClient.js";
 import { totalPartyPoints } from "../progress/partyPoints.js";
 import { DIFFICULTY_DEFS, DIFFICULTY_ORDER, formatScore, highscoreFor } from "../arcade/controller.js";
-import { canClaimDaily, claimDaily, describeReward, previewReward } from "../rewards/dailyReward.js";
+import { claimDaily, describeReward } from "../rewards/dailyReward.js";
 import { listMissionProgress, claimMission } from "../missions/missions.js";
 import { listBoxes, purchaseBox, grantFreeBox, buyMiniBox, redeemVoucher } from "../shop/shop.js";
 import { WHEEL_SLICES, sliceLabel, describeSlice, spinsAvailable, canFreeSpin, spinWheel } from "../rewards/wheel.js";
@@ -79,17 +80,15 @@ function openArcadeDifficultyScreen(gameId) {
     const extra = DIFF_DETAIL[gameId]?.[d];
     const parts = [];
     if (extra) parts.push(extra);
-    if (best != null) parts.push(`DEIN HIGHSCORE: ${formatScore(meta, best)}`);
+    if (best != null) parts.push(`${meta?.lowerIsBetter ? "BESTZEIT" : "DEIN HIGHSCORE"}: ${formatScore(meta, best)}`);
     btn.querySelector(".diff-btn__best").textContent = parts.join(" · ");
   });
   showScreen("screen-arcade-difficulty");
 }
 
-// Kleine Punkte an "Belohnung" / "Glücksrad", wenn dort etwas wartet -
-// bewusst dezent, aber genug Anreiz, regelmäßig vorbeizuschauen.
+// Zähler-Badges (MISSIONEN ③, SHOP ②, GLÜCKSRAD ①) - nur sichtbar, wenn etwas wartet
 function refreshHomeBadges() {
-  el("#btn-daily")?.classList.toggle("btn--ready", canClaimDaily(profile));
-  el("#btn-wheel")?.classList.toggle("btn--ready", spinsAvailable(profile) > 0);
+  refreshBadges(profile);
 }
 
 function resetToMenu() {
@@ -99,24 +98,18 @@ function resetToMenu() {
   audio.playMood("menu");
 }
 
-function openDailyScreen() {
-  showScreen("screen-daily");
-  const preview = previewReward(profile);
-  renderDailyStatus(canClaimDaily(profile), profile.dailyReward.streakDay, preview.streakDay, preview.text);
-}
-
 function openMissionsScreen() {
   showScreen("screen-missions");
-  renderMissions(listMissionProgress(profile), handleClaimMission);
+  renderMissions(profile, handleClaimMission);
 }
 
 function handleClaimMission(missionId) {
-  const res = claimMission(profile, missionId, { grantRewards, grantFreeBox, unlockSkin, addSpin, addMiniBoxes });
+  const res = claimMission(profile, missionId, { grantRewards, grantFreeBox, unlockSkin, addSpin, addMiniBoxes, addVoucher, unlockCosmetic });
   if (!res.success) return;
   checkMilestones(profile);
   afterProgress();
   audio.sfx("unlockRare");
-  renderMissions(listMissionProgress(profile), handleClaimMission);
+  renderMissions(profile, handleClaimMission);
   if (res.boxResult) {
     playBoxOpeningAnimation(res.boxResult).then(() => {
       renderProfileSummary(profile);
@@ -210,7 +203,23 @@ function handleWheelSpin() {
 
 // --- Shop: Boxen · Rad · Bonus · Sammlung ---------------------------------
 let shopTab = "boxes";
+function handleClaimDaily() {
+  const res = claimDaily(profile);
+  if (!res.success) return;
+  audio.sfx("unlockRare");
+  if (res.reward.type === "box") {
+    // Gratis-Box (Jackpot-Tag 7) - echt öffnen, mit Öffnungsanimation
+    const boxResult = grantFreeBox(profile, res.reward.boxId, Math.random);
+    saveProfile(profile);
+    playBoxOpeningAnimation(boxResult).then(() => { renderSkinBadge(profile.equippedSkin ?? "mario"); afterProgress(); refreshShop(); });
+  } else {
+    afterProgress(); refreshShop();
+    const b = el("#daily-claimed-banner");
+    if (b) { b.textContent = `🎉 Du hast ${describeReward(res.reward)} erhalten!`; b.classList.remove("hidden"); }
+  }
+}
 const shopHandlers = {
+  onClaimDaily: handleClaimDaily,
   onBuyBox: (id) => handleBuyBox(id),
   onOpenWheel: () => { audio.sfx("click"); openWheelScreen(); },
   onOpenMiniBox: () => handleOpenMiniBox(),
@@ -221,6 +230,7 @@ function refreshShop() {
   setShopTab(shopTab);
 }
 function openShopScreen() {
+  shopTab = shopTab || "boxes";
   showScreen("screen-shop");
   refreshShop();
   el("#creator-code-message").classList.add("hidden");
@@ -277,7 +287,8 @@ const profileHandlers = {
   },
   onEquip(cat, id) {
     audio.sfx("click");
-    if (!equipCosmetic(profile, cat, id)) return;
+    if (id === "") { ensureCosmetics(profile).equipped[cat] = "none"; }
+    else if (!equipCosmetic(profile, cat, id)) return;
     saveProfile(profile);
     openProfileScreen();
     renderProfileSummary(profile);
@@ -289,23 +300,39 @@ function openProfileScreen() {
 }
 
 // --- Rangliste (echt, Server-basiert - keine Fake-Einträge) ----------------
+let ppRequestId = 0;
+function openPublicProfile(id) {
+  audio.sfx("click");
+  showScreen("screen-public-profile");
+  const my = ++ppRequestId;
+  renderPublicProfile({ status: "loading" });
+  fetchPublicProfile(id).then((r) => {
+    if (my !== ppRequestId) return;
+    if (!r.ok) renderPublicProfile({ status: "error", message: ERROR_TEXT[r.error] ?? "Profil konnte nicht geladen werden." });
+    else renderPublicProfile({ status: "ok", data: r });
+  });
+}
+
 let lbRequestId = 0;
 function openLeaderboardScreen() {
   showScreen("screen-leaderboard");
   const my = ++lbRequestId;
-  renderLeaderboard(profile, { status: "loading" });
+  renderLeaderboard(profile, { status: "loading" }, openPublicProfile);
   const done = (r) => {
     if (my !== lbRequestId) return;
     if (!r.ok) {
-      renderLeaderboard(profile, { status: "error", message: ERROR_TEXT[r.error] ?? "Rangliste konnte nicht geladen werden." });
+      renderLeaderboard(profile, { status: "error", message: ERROR_TEXT[r.error] ?? "Rangliste konnte nicht geladen werden." }, openPublicProfile);
       el("#btn-lb-retry")?.addEventListener("click", openLeaderboardScreen);
       return;
     }
-    renderLeaderboard(profile, { status: "ok", top: r.top, total: r.total, me: r.me ?? null });
+    renderLeaderboard(profile, { status: "ok", top: r.top, total: r.total, me: r.me ?? null }, openPublicProfile);
     el("#btn-lb-profile")?.addEventListener("click", () => { audio.sfx("click"); openProfileScreen(); });
   };
   // Mit Namen: eigenen Stand melden (liefert gleich den eigenen Platz). Ohne Namen: nur lesen.
-  (profile.nickname ? submitMyScore(profile) : fetchTop()).then(done);
+  (profile.nickname ? submitMyScore(profile) : fetchTop())
+    // Zu schnell hintereinander gemeldet (z.B. Zurück aus einem Profil)? Dann nur die Liste laden.
+    .then((r) => (!r.ok && r.error === "too-fast" ? fetchTop() : r))
+    .then(done);
 }
 
 function handleRedeemCreatorCode() {
@@ -349,33 +376,11 @@ document.addEventListener("DOMContentLoaded", () => {
     });
   });
 
-  el("#btn-daily").addEventListener("click", () => { audio.sfx("click"); openDailyScreen(); });
-  el("#btn-daily-claim").addEventListener("click", () => {
-    const res = claimDaily(profile);
-    if (!res.success) return; // Button ist ohnehin disabled, wenn schon abgeholt
-    audio.sfx("unlockRare");
-    renderDailyStatus(false, res.streakDay, res.streakDay, ""); // Button sperren, Vorschau ausblenden
-    afterProgress();
-
-    if (res.reward.type === "box") {
-      // Gratis-Box (Jackpot-Tag) - tatsächlich öffnen und die echte
-      // Öffnungsanimation zeigen, damit die Belohnung sichtbar ankommt.
-      const boxResult = grantFreeBox(profile, res.reward.boxId, Math.random);
-      saveProfile(profile);
-      playBoxOpeningAnimation(boxResult).then(() => {
-        renderDailyClaimed(describeReward(res.reward) + (boxResult.isNew ? ` (${boxResult.skin.name})` : ` - Duplikat, +${boxResult.compensationCoins} 🪙`), res.streakDay);
-        renderSkinBadge(profile.equippedSkin ?? "mario");
-        afterProgress();
-      });
-    } else {
-      renderDailyClaimed(describeReward(res.reward), res.streakDay);
-    }
-  });
-
   el("#btn-wheel").addEventListener("click", () => { audio.sfx("click"); openWheelScreen(); });
   el("#btn-wheel-spin").addEventListener("click", handleWheelSpin);
   el("#btn-missions").addEventListener("click", () => { audio.sfx("click"); openMissionsScreen(); });
   el("#btn-shop").addEventListener("click", () => { audio.sfx("click"); openShopScreen(); });
+  el("#btn-public-back").addEventListener("click", () => { audio.sfx("click"); destroyProfileAvatar(); openLeaderboardScreen(); });
   el("#btn-profile").addEventListener("click", () => { audio.sfx("click"); openProfileScreen(); });
   el("#profile-summary").addEventListener("click", () => { audio.sfx("click"); openProfileScreen(); });
   el("#btn-leaderboard").addEventListener("click", () => { audio.sfx("click"); openLeaderboardScreen(); });

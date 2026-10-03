@@ -30,7 +30,6 @@
         <button id="btn-shop" class="btn btn--secondary">🛒 SHOP</button>
         <button id="btn-locker" class="btn btn--secondary">👤 SPIND</button>
         <button id="btn-missions" class="btn btn--secondary">🎯 MISSIONEN</button>
-        <button id="btn-daily" class="btn btn--secondary">🎁 BELOHNUNG</button>
         <button id="btn-profile" class="btn btn--secondary">🪪 PROFIL</button>
         <button id="btn-leaderboard" class="btn btn--secondary">🏆 RANGLISTE</button>
         <button id="btn-wheel" class="btn btn--secondary btn--wide">🎡 GLÜCKSRAD</button>
@@ -76,6 +75,7 @@
     <section id="screen-shop" class="screen hidden">
       <h2>Shop</h2>
       <div id="shop-coins" class="shop-coins">0 🪙</div>
+      <div id="shop-daily"></div>
       <div id="shop-tabs" class="tabs">
         <button class="tab tab--active" data-tab="boxes">BOXEN</button>
         <button class="tab" data-tab="wheel">RAD</button>
@@ -103,6 +103,12 @@
       <h2>Profil</h2>
       <div id="profile-body"></div>
       <button class="btn btn--secondary" data-back="screen-menu">Zurück</button>
+    </section>
+
+    <section id="screen-public-profile" class="screen hidden">
+      <h2>Spielerprofil</h2>
+      <div id="public-profile-body"></div>
+      <button class="btn btn--secondary" id="btn-public-back">Zurück zur Rangliste</button>
     </section>
 
     <section id="screen-leaderboard" class="screen hidden">
@@ -196,14 +202,6 @@
       <button class="btn btn--secondary" data-back="screen-menu">Zurück</button>
     </section>
 
-    <section id="screen-daily" class="screen hidden">
-      <h2>Tägliche Belohnung</h2>
-      <p id="daily-status"></p>
-      <button id="btn-daily-claim" class="btn btn--primary">Abholen</button>
-      <p id="daily-claimed-banner" class="daily-claimed-banner hidden"></p>
-      <button class="btn btn--secondary" data-back="screen-menu">Zurück</button>
-    </section>
-
     <section id="screen-wheel" class="screen hidden">
       <h2>Glücksrad</h2>
       <p id="wheel-status" class="arcade-subtitle"></p>
@@ -218,6 +216,7 @@
 
     <section id="screen-missions" class="screen hidden">
       <h2>Missionen</h2>
+      <div id="mission-tabs" class="tabs"></div>
       <div id="missions-list"></div>
       <button class="btn btn--secondary" data-back="screen-menu">Zurück</button>
     </section>

@@ -4,6 +4,7 @@
 import { SERVER_URL } from "./config.js";
 import { totalPartyPoints } from "../progress/partyPoints.js";
 import { equippedCosmetic } from "../progress/cosmetics.js";
+import { buildPublicProfile } from "./publicProfile.js";
 
 const apiBase = () => SERVER_URL.replace(/^wss:/, "https:").replace(/^ws:/, "http:").replace(/\/$/, "");
 
@@ -24,6 +25,7 @@ async function request(path, opts = {}, timeoutMs = 70000) {
 }
 
 export function fetchTop() { return request("/leaderboard"); }
+export function fetchPublicProfile(id) { return request(`/leaderboard/profile?id=${encodeURIComponent(id)}`); }
 
 export function submitMyScore(profile) {
   const title = equippedCosmetic(profile, "title");
@@ -33,7 +35,7 @@ export function submitMyScore(profile) {
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({
       key: profile.playerKey, name: profile.nickname, pp: totalPartyPoints(profile), level: profile.level,
-      title: title?.name ?? "", emote: emote?.icon ?? "",
+      title: title?.name ?? "", emote: emote?.icon ?? "", profile: buildPublicProfile(profile),
     }),
   });
 }
@@ -54,6 +56,7 @@ export const ERROR_TEXT = {
   offline: "Server nicht erreichbar. Bist du online?",
   timeout: "Der Server antwortet nicht (er wacht evtl. gerade erst auf). Bitte später erneut versuchen.",
   "name-taken": "Dieser Name ist in der Rangliste schon vergeben. Wähle im Profil einen anderen.",
+  "not-found": "Dieses Profil gibt es nicht mehr.",
   "too-fast": "Zu viele Anfragen - bitte kurz warten.",
   "bad-name": "Der Name ist für die Rangliste ungültig.",
   "bad-score": "Die Punktzahl wurde vom Server nicht akzeptiert.",

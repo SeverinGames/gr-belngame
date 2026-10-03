@@ -35,7 +35,7 @@ export const POOLS = {
   normal: ["circle", "star", "hexagon", "heart", "rhombus", "arrow"],
   hard: ["nikolaus", "pentagram", "bolt", "heart", "nikolaus", "star"],
 };
-export const STRICT = { easy: 0.17, normal: 0.14, hard: 0.115 }; // Toleranz (Anteil der Formgröße), kleiner = strenger
+export const STRICT = { easy: 0.34, normal: 0.29, hard: 0.25 }; // Toleranz (Anteil der Formgröße): großzügig, auch für Touch // Toleranz (Anteil der Formgröße), kleiner = strenger
 
 export function resample(pts, n) {
   if (pts.length < 2) return pts.slice();
@@ -63,6 +63,22 @@ function distToPolyline(p, line) {
 }
 // strokes: Liste von Strichen (je Liste von {x,y} in Pixeln). Rückgabe: { percent, accuracy, coverage, reason }
 export function scoreDrawing(shapeId, strokes, difficulty = "normal") {
+  const own = rawScore(shapeId, strokes, difficulty);
+  if (own.reason || own.percent <= 0) return own;
+  // Erkennung: passt eine ANDERE Form deutlich besser, war es wohl die falsche Form -> Abzug
+  let bestOther = 0;
+  const SIMILAR = [["circle", "hexagon", "rhombus", "heart"], ["star", "pentagram"], ["square", "rhombus"]];
+  for (const id of Object.keys(SHAPES)) {
+    if (id === shapeId || SIMILAR.some((g) => g.includes(id) && g.includes(shapeId))) continue; // ähnliche Formen nicht gegeneinander abwerten
+    const o = rawScore(id, strokes, difficulty);
+    if (!o.reason) bestOther = Math.max(bestOther, o.percent);
+  }
+  const margin = own.percent - bestOther;
+  let percent = own.percent;
+  if (margin < -8) percent = Math.round(percent * Math.max(0.25, 0.6 + (margin + 8) / 60)); // andere Form passt klar besser
+  return { ...own, percent: Math.max(0, Math.min(100, percent)) };
+}
+function rawScore(shapeId, strokes, difficulty) {
   const shape = SHAPES[shapeId], tol = STRICT[difficulty] ?? STRICT.normal;
   const all = strokes.flat();
   if (all.length < 8) return { percent: 0, reason: "zu wenig gezeichnet" };
@@ -80,16 +96,22 @@ export function scoreDrawing(shapeId, strokes, difficulty = "normal") {
   // Vorlagenpunkte -> Abstand zur Zeichnung (jeder Strich einzeln, kleinster Abstand zählt)
   const tsamp = resample(shape.pts, 160);
   const e2 = tsamp.reduce((a, p) => a + Math.min(...drawn.map((s) => distToPolyline(p, s))), 0) / tsamp.length / size;
-  const err = 0.5 * (e1 + e2) + 0.5 * Math.max(e1, e2);
-  // Fehlende Linien (Vorlage nicht abgedeckt) und überflüssige Striche (weit weg) kosten extra
-  const missing = tsamp.filter((p) => Math.min(...drawn.map((s) => distToPolyline(p, s))) > 0.09 * size).length / tsamp.length;
-  const stray = dsamp.filter((p) => distToPolyline(p, shape.pts) > 0.13 * size).length / dsamp.length;
-  let percent = 100 * (1 - err / tol) - missing * 90 - stray * 120;
+  // Großzügige Bewertung: allgemeine Ähnlichkeit zählt, nicht Pixel-Perfektion.
+  const err = 0.5 * (e1 + e2) + 0.25 * Math.max(e1, e2);
+  const missing = tsamp.filter((p) => Math.min(...drawn.map((s) => distToPolyline(p, s))) > 0.13 * size).length / tsamp.length;
+  const stray = dsamp.filter((p) => distToPolyline(p, shape.pts) > 0.16 * size).length / dsamp.length;
+  // weiche Kurve: kleine Abweichungen kosten wenig, erst grobe Fehler viel
+  const q = Math.min(1, err / tol);
+  let percent = 100 * (1 - q * q * 0.9 - q * 0.1) - missing * 70 - stray * 90;
+  // Gekritzel: viel mehr Strichlänge als die Form braucht
+  const len = (pts) => pts.reduce((a, p, i) => a + (i ? Math.hypot(p.x - pts[i - 1].x, p.y - pts[i - 1].y) : 0), 0);
+  const ratio = drawn.reduce((a, st) => a + len(st), 0) / (len(shape.pts) || 1);
+  if (ratio > 1.9) percent *= Math.max(0.1, 1 - (ratio - 1.9) * 0.55);
   // geschlossene Formen sollten auch geschlossen sein
   if (shape.closed) {
     const first = drawn[0][0], lastS = drawn[drawn.length - 1], last = lastS[lastS.length - 1];
     const gap = Math.hypot(first.x - last.x, first.y - last.y) / size;
-    if (gap > 0.15) percent -= Math.min(15, (gap - 0.15) * 40);
+    if (gap > 0.25) percent -= Math.min(8, (gap - 0.25) * 25);
   }
   percent = Math.max(0, Math.min(100, Math.round(percent)));
   return { percent, accuracy: Math.max(0, Math.round(100 * (1 - e1 / tol))), coverage: Math.max(0, Math.round(100 * (1 - missing))) };

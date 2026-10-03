@@ -255,6 +255,7 @@ export function start({ container, skinId, rng, onHud, onEnd, difficulty = "norm
   const startCellW = cw(maze.start[0], maze.start[1]);
   const drone = { x: startCellW.x, y: FLY_H, z: startCellW.z, yaw: 0, pitch: 0, roll: 0 };
   const cam = { x: 0, y: 2, z: 0, tx: 0, ty: 1.6, tz: 0, yaw: 0 };
+  let yawVel = 0;
   let phase = "intro", phaseT = 0, time = 0, playTime = 0, wrong = 0, maxIdx = 0, onMain = true, found = false;
   const keys = { up: false, down: false, left: false, right: false };
   const particles = [];
@@ -263,7 +264,7 @@ export function start({ container, skinId, rng, onHud, onEnd, difficulty = "norm
   // Beobachtungsflug: Weg glätten (Ecken abrunden) und mit konstantem Tempo abfliegen
   const flight = (() => {
     let pts = startW.map((p) => [p.x, p.z]);
-    for (let it = 0; it < 3; it++) {
+    for (let it = 0; it < 4; it++) {
       const out = [pts[0]];
       for (let i = 0; i < pts.length - 1; i++) {
         const a = pts[i], b = pts[i + 1];
@@ -353,13 +354,15 @@ export function start({ container, skinId, rng, onHud, onEnd, difficulty = "norm
   function updatePlay(dt) {
     playTime += dt;
     const turn = (keys.right ? 1 : 0) - (keys.left ? 1 : 0), fwd = (keys.up ? 1 : 0) - (keys.down ? 1 : 0) * 0.45;
-    drone.yaw += turn * TURN_RATE * dt * (fwd < 0 ? -1 : 1) * (fwd === 0 ? 0.85 : 1);
+    // Drehträgheit: sanftes Anfahren/Ausrollen statt abrupter Richtungswechsel
+    yawVel += (turn * TURN_RATE * (fwd < 0 ? -1 : 1) * (fwd === 0 ? 0.85 : 1) - yawVel) * Math.min(1, dt * 9);
+    drone.yaw += yawVel * dt;
     const sp = fwd * (fwd > 0 ? PLAYER_SPEED : PLAYER_SPEED) * dt;
     const nx = drone.x + Math.sin(drone.yaw) * sp, nz = drone.z - Math.cos(drone.yaw) * sp;
     if (!blockedCircle(nx, drone.z)) drone.x = nx;
     if (!blockedCircle(drone.x, nz)) drone.z = nz;
     drone.pitch += ((fwd > 0 ? -0.2 : fwd < 0 ? 0.12 : 0) - drone.pitch) * Math.min(1, dt * 6);
-    drone.roll += ((-turn * 0.32) - drone.roll) * Math.min(1, dt * 6);
+    drone.roll += ((-yawVel / TURN_RATE * 0.32) - drone.roll) * Math.min(1, dt * 6);
 
     // Fortschritt / Sackgassen
     const [cx, cy] = worldToCell(maze, drone.x, drone.z, S);
@@ -413,7 +416,7 @@ export function start({ container, skinId, rng, onHud, onEnd, difficulty = "norm
   // ---------------------------------------------------------------- Kamera
   function updateCameraOnPath(dt) {
     const c = flightAt(flightDist - 3.6), look = flightAt(flightDist + 5);
-    const k = Math.min(1, dt * 8);
+    const k = Math.min(1, dt * 5);
     cam.x += (c.x - cam.x) * k; cam.z += (c.z - cam.z) * k; cam.y = 2.05;
     cam.tx += (look.x - cam.tx) * k; cam.tz += (look.z - cam.tz) * k; cam.ty = 1.7;
     cam.yaw = drone.yaw;
@@ -421,7 +424,7 @@ export function start({ container, skinId, rng, onHud, onEnd, difficulty = "norm
   function updateCamera(dt, tight) {
     const targetYaw = drone.yaw;
     let dy = targetYaw - cam.yaw; dy = Math.atan2(Math.sin(dy), Math.cos(dy));
-    cam.yaw += dy * Math.min(1, dt * (tight ? 14 : 6));
+    cam.yaw += dy * Math.min(1, dt * (tight ? 10 : 5));
     const fx = Math.sin(cam.yaw), fz = -Math.cos(cam.yaw);
     // so weit hinter die Drohne, wie der Gang frei ist (Kamera bleibt im Mais-Gang)
     let back = 0;
@@ -457,10 +460,10 @@ export function start({ container, skinId, rng, onHud, onEnd, difficulty = "norm
       }
       case "observe": {
         flightDist += L.obsSpeed * dt;
-        const f = flightAt(flightDist), nf = flightAt(flightDist + 0.8);
+        const f = flightAt(flightDist), nf = flightAt(flightDist + 2.2);
         drone.x = f.x; drone.z = f.z;
-        let dy = nf.yaw - drone.yaw; dy = Math.atan2(Math.sin(dy), Math.cos(dy)); drone.yaw += dy * Math.min(1, dt * 8);
-        drone.roll += ((-dy * 0.8) - drone.roll) * Math.min(1, dt * 5); drone.pitch += (-0.18 - drone.pitch) * Math.min(1, dt * 4);
+        let dy = nf.yaw - drone.yaw; dy = Math.atan2(Math.sin(dy), Math.cos(dy)); drone.yaw += dy * Math.min(1, dt * 4.5);
+        drone.roll += ((-dy * 0.7) - drone.roll) * Math.min(1, dt * 3.5); drone.pitch += (-0.18 - drone.pitch) * Math.min(1, dt * 4);
         drone.y = FLY_H + Math.sin(time * 3) * 0.05;
         updateCameraOnPath(dt);
         onHud({ timeLeft: Math.max(0, obsDuration - phaseT), total: obsDuration, score: 0 });

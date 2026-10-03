@@ -4,7 +4,7 @@
 export const MAZE_LEVELS = {
   easy: { n: 6, straight: 0.85, speed: 6.2, timeFactor: 4.5 },   // wenige Abzweigungen, kurze Gänge
   normal: { n: 9, straight: 0.45, speed: 6.4, timeFactor: 3.6 },
-  hard: { n: 12, straight: 0, speed: 6.6, timeFactor: 3.0 },     // viele Sackgassen
+  hard: { n: 15, straight: 0, speed: 6.8, timeFactor: 2.5 },     // groß, viele Sackgassen, knapperes Zeitlimit
 };
 
 export function generateMaze(difficulty, rng = Math.random) {

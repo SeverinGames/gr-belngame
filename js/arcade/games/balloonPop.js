@@ -7,7 +7,16 @@ import { audio } from "../../audio/audio.js";
 const DURATION_MS = 32000;
 const COLORS = ["#ff6b8a", "#6be0ff", "#ffd166", "#7bff9e", "#c78bff", "#ff9f6b"];
 
-export function start({ container, skinId, rng, onHud, onEnd }) {
+// LEICHT/MITTEL: größere Ballons, langsamerer Aufstieg, großzügige Trefferfläche
+// (unsichtbarer Rand per CSS), Fehlklicks auf LEICHT ohne Combo-Verlust.
+const BP = {
+  easy: { size: 1.55, life: 1.5, spawn: 1.25, forgiving: true },
+  normal: { size: 1.3, life: 1.2, spawn: 1.05, forgiving: false },
+  hard: { size: 1.0, life: 0.95, spawn: 0.9, forgiving: false },
+};
+
+export function start({ container, skinId, rng, onHud, onEnd, difficulty = "normal" }) {
+  const B = BP[difficulty] ?? BP.normal;
   const stage = document.createElement("div");
   stage.className = "bp-playfield";
   container.appendChild(stage);
@@ -34,20 +43,20 @@ export function start({ container, skinId, rng, onHud, onEnd }) {
     }
   }
 
-  function onStagePointer() { combo.miss(); } // Klick auf leere Fläche = Combo weg
+  function onStagePointer() { if (!B.forgiving) combo.miss(); } // Klick auf leere Fläche = Combo weg
 
   function spawnBalloon() {
     const roll = rng();
     const kind = roll < 0.1 ? "gold" : roll < 0.3 ? "small" : "normal";
     const el = document.createElement("div");
-    const size = kind === "small" ? 34 : kind === "gold" ? 52 : 46;
+    const size = Math.round((kind === "small" ? 34 : kind === "gold" ? 52 : 46) * B.size);
     el.className = `bp-balloon bp-balloon--${kind}`;
     el.style.width = `${size}px`;
     el.style.height = `${size * 1.2}px`;
     el.style.background = kind === "gold" ? "radial-gradient(circle at 35% 30%, #fff2b0, #ffb020)" : COLORS[Math.floor(rng() * COLORS.length)];
     const x = 8 + rng() * 82;
     el.style.left = `${x}%`;
-    const lifeMs = 3600 + rng() * 1400;
+    const lifeMs = (3600 + rng() * 1400) * B.life;
     el.style.animationDuration = `${lifeMs}ms`;
     stage.appendChild(el);
     const b = { el, popped: false, timeout: null };
@@ -92,7 +101,7 @@ export function start({ container, skinId, rng, onHud, onEnd }) {
     spawnTimer -= dt;
     if (spawnTimer <= 0) {
       spawnBalloon();
-      spawnTimer = clamp(560 - elapsed * 0.01, 220, 560);
+      spawnTimer = clamp(560 - elapsed * 0.01, 220, 560) * B.spawn;
     }
 
     if (elapsed >= DURATION_MS) { endGame(); return; }

@@ -7,6 +7,8 @@ import { ARCADE_GAMES, getArcadeGame } from "./registry.js";
 import { rewardTierFromPercent } from "./engine.js";
 import { applyRound } from "../progress/roundResult.js";
 import { xpBarHtml } from "../ui/xpbar.js";
+import { playFinishEffect, showEmoteBubble } from "../ui/effects.js";
+import { equippedCosmetic } from "../progress/cosmetics.js";
 
 const el = (sel) => document.querySelector(sel);
 
@@ -51,7 +53,7 @@ export function createArcadeController({ getProfile, saveProfile, showScreen, au
         <div class="arcade-card__icon">${g.icon}</div>
         <div class="arcade-card__name">${g.name}</div>
         <div class="arcade-card__tagline">${g.tagline}</div>
-        ${best ? `<div class="arcade-card__best">🏆 ${formatScore(g, best)}</div>` : ""}
+        ${best ? `<div class="arcade-card__best">🏆 ${g.lowerIsBetter ? "Bestzeit: " : ""}${formatScore(g, best)}</div>` : ""}
       `;
       card.addEventListener("click", () => {
         audio.sfx("click");
@@ -148,8 +150,8 @@ export function createArcadeController({ getProfile, saveProfile, showScreen, au
 
     const best = highscoreFor(profile, gameId, currentDifficulty);
     const highscoreLine = res.isNewHighscore
-      ? `<div class="arcade-result__highscore">🏆 NEUER HIGHSCORE!</div>`
-      : best != null ? `<div class="arcade-result__best">DEIN HIGHSCORE: ${formatScore(meta, best)}</div>` : "";
+      ? `<div class="arcade-result__highscore">🏆 ${meta?.lowerIsBetter ? "NEUE BESTZEIT!" : "NEUER HIGHSCORE!"}</div>`
+      : best != null ? `<div class="arcade-result__best">${meta?.lowerIsBetter ? "DEINE BESTZEIT" : "DEIN HIGHSCORE"}: ${formatScore(meta, best)}</div>` : "";
     const ppLine = `<div class="arcade-result__pp"><span class="pp-chip">⭐ ${res.pp.roundPoints} PARTY-PUNKTE</span>${res.pp.gained > 0 ? `<span class="pp-gain">Gesamt +${res.pp.gained}</span>` : `<span class="pp-gain pp-gain--dim">Bestwert: ${res.pp.newBest}</span>`}</div>`;
 
     const resultBox = el("#arcade-result");
@@ -177,6 +179,13 @@ export function createArcadeController({ getProfile, saveProfile, showScreen, au
     `;
     resultBox.classList.remove("hidden");
     el("#arcade-combo").classList.add("hidden");
+    // Ausgerüstete Kosmetik: Abschluss-Effekt + Emote nach guten Runden
+    if (tier.tier !== "schwach") {
+      const fin = equippedCosmetic(profile, "finish");
+      if (fin && fin.id !== "none") playFinishEffect(resultBox, fin.id);
+      const em = equippedCosmetic(profile, "emote");
+      if (em?.icon) showEmoteBubble(resultBox, em.icon);
+    }
 
     el("#btn-arcade-retry").addEventListener("click", () => { audio.sfx("click"); openGame(gameId, currentDifficulty); }, { once: true });
     el("#btn-arcade-next").addEventListener("click", () => { audio.sfx("click"); openGame(pickNextGameId(gameId), currentDifficulty); }, { once: true });
@@ -207,6 +216,12 @@ export function createArcadeController({ getProfile, saveProfile, showScreen, au
     if (activeGame) { activeGame.destroy(); activeGame = null; }
     openHome();
   }
+
+  // Im Spielbereich nie Text markieren oder Elemente ziehen (Maus/Touch)
+  const stageEl = el("#arcade-stage");
+  stageEl.addEventListener("selectstart", (e) => { if (e.target?.tagName !== "INPUT") e.preventDefault(); });
+  stageEl.addEventListener("dragstart", (e) => e.preventDefault());
+  stageEl.addEventListener("pointerdown", () => { try { window.getSelection()?.removeAllRanges(); } catch { /* ignore */ } });
 
   el("#btn-arcade-quit").addEventListener("click", () => { audio.sfx("click"); quitActiveGame(); });
 

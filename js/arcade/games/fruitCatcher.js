@@ -10,7 +10,12 @@ const BAD = "🥴";   // faules Obst
 const TRASH = "🥫"; // harmloser Müll statt Bombe/Gefahr (Punkt 1 des Prompts)
 const GOLD = "🍊";  // goldenes Obst
 
-export function start({ container, skinId, rng, onHud, onEnd }) {
+// Fallgeschwindigkeit je Schwierigkeit: LEICHT/MITTEL nur moderat schneller als
+// früher, SCHWER deutlich schneller (und etwas dichter). Fangbereich bleibt gleich.
+const FALL = { easy: { speed: 1.15, spawn: 1.0 }, normal: { speed: 1.3, spawn: 0.92 }, hard: { speed: 1.85, spawn: 0.8 } };
+
+export function start({ container, skinId, rng, onHud, onEnd, difficulty = "normal" }) {
+  const FL = FALL[difficulty] ?? FALL.normal;
   const stage = document.createElement("div");
   stage.className = "fc-playfield";
   container.appendChild(stage);
@@ -69,7 +74,7 @@ export function start({ container, skinId, rng, onHud, onEnd }) {
     el.textContent = type === "good" ? GOOD[Math.floor(rng() * GOOD.length)]
       : type === "gold" ? GOLD : type === "bad" ? BAD : TRASH;
     stage.appendChild(el);
-    fruits.push({ el, x: 6 + rng() * 88, y: -10, speed: (58 + rng() * 26) * (fastMode ? 1.55 : 1), type });
+    fruits.push({ el, x: 6 + rng() * 88, y: -10, speed: (58 + rng() * 26) * FL.speed * (fastMode ? 1.4 : 1), type });
   }
 
   function catchFruit(f) {
@@ -138,7 +143,7 @@ export function start({ container, skinId, rng, onHud, onEnd }) {
     spawnTimer -= dt;
     if (spawnTimer <= 0) {
       spawnFruit();
-      spawnTimer = clamp(640 - elapsed * 0.012, 250, 640);
+      spawnTimer = clamp((640 - elapsed * 0.012) * FL.spawn, 220, 640);
     }
 
     const basketTopPx = stageH - 46;

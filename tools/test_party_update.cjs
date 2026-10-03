@@ -204,10 +204,10 @@ async function openGame(page, name, diff) {
   const prices = await page.locator(".shop-card__buy").allInnerTexts();
   check("Super/Mega Box sind per Level gesperrt (Level 2)", /ab Level 4/.test(prices[1]) && /ab Level 8/.test(prices[2]), prices.join(" | "));
   await setProfile(page, { coins: 300 }); await page.reload(); await page.waitForTimeout(250); await page.click("#btn-shop"); await page.waitForTimeout(150);
-  check("Box-Fortschritt wird angezeigt (300/7.500)", /300 \/ 7\.500/.test(await page.locator(".box-progress").innerText()));
+  check("Box-Fortschritt wird angezeigt (300/10.000)", /300 \/ 10\.000/.test(await page.locator(".box-progress").innerText()));
   await page.click('#shop-tabs [data-tab="bonus"]'); await page.waitForTimeout(100);
   check("Bonus-Tab: Tagesziele + Mini-Box + Creator Code", /Tagesziele/.test(await page.locator("#shop-tab-bonus").innerText()) && /Mini-Box/.test(await page.locator("#shop-tab-bonus").innerText()) && await page.locator("#creator-code-input").isVisible());
-  await setProfile(page, { bonusBoxes: 1, coins: 9000 });
+  await setProfile(page, { bonusBoxes: 1, coins: 12000 });
   await page.reload(); await page.waitForTimeout(250); await page.click("#btn-shop"); await page.click('#shop-tabs [data-tab="bonus"]'); await page.waitForTimeout(100);
   await page.click("#btn-mini-open"); await page.waitForSelector(".minibox__reveal:not(.hidden)", { timeout: 5000 });
   const mb = await page.locator(".celebrate-modal--minibox").innerText();
@@ -219,7 +219,7 @@ async function openGame(page, name, diff) {
   await page.waitForSelector("#mysterybox-animation", { timeout: 4000 }).catch(() => {});
   for (let i = 0; i < 14 && await page.locator("#mysterybox-animation").count(); i++) { await page.locator("#mysterybox-animation").click({ force: true, position: { x: 150, y: 300 } }).catch(() => {}); const b = page.locator("#mysterybox-animation button:visible").first(); if (await b.count()) await b.click({ force: true }).catch(() => {}); await page.waitForTimeout(500); }
   pr = await profileOf(page);
-  check("Basic Box kaufbar (7.500 Münzen abgezogen/ggf. Duplikat-Rückzahlung)", pr.coins < 9000 && pr.stats.boxesOpened >= 1, `coins ${pr.coins}`);
+  check("Basic Box kaufbar (10.000 Münzen abgezogen/ggf. Duplikat-Rückzahlung)", pr.coins < 12000 && pr.stats.boxesOpened >= 1, `coins ${pr.coins}`);
   await page.click('#shop-tabs [data-tab="collection"]'); await page.waitForTimeout(100);
   check("Sammlung zeigt Skin-Fortschritt x / 8", /\/ 8/.test(await page.locator("#shop-tab-collection").innerText()));
   await page.click('#shop-tabs [data-tab="wheel"]'); await page.waitForTimeout(100);

@@ -8,6 +8,7 @@ export const ARCADE_GAMES = [
     name: "Obstkorb",
     icon: "🍎",
     tagline: "Fang so viel Obst wie möglich!",
+    realDifficulty: true,
     load: () => import("./games/fruitCatcher.js"),
   },
   {
@@ -15,13 +16,14 @@ export const ARCADE_GAMES = [
     name: "Balloon Pop",
     icon: "🎈",
     tagline: "Platze sie alle, bevor die Zeit abläuft!",
+    realDifficulty: true,
     load: () => import("./games/balloonPop.js"),
   },
   {
     id: "colorTrick",
     name: "Color Trick",
     icon: "🎨",
-    tagline: "Das Wort lügt - erkenne die echte Farbe der Schrift!",
+    tagline: "Tippe die Farbe, die das Wort nennt - nicht die der Schrift!",
     realDifficulty: true,
     load: () => import("./games/colorTrick.js"),
   },

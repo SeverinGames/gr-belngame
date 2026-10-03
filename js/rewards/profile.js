@@ -68,14 +68,17 @@ function defaultProfile() {
       treasuresFound: 0,
       wins_connectFour: 0,
       onlineRoundsPlayed: 0,
+      xpEverEarned: 0,
+      hardRoundsPlayed: 0,
     },
     lastPlayedDay: null,
     wheel: { lastFreeDay: null, bonusSpins: 0 },
     redeemedCodes: [],
     arcadeGamesPlayed: [],
+    hardGamesPlayed: [], // verschiedene Spiele, die schon auf SCHWER gespielt wurden
     claimedMissions: [],
     milestonesDone: [],
-    daily: { day: null, rounds: 0, games: [], done: [], highscoreRewards: 0, roundSpins: 0 },
+    daily: { day: null, rounds: 0, games: [], done: [], highscoreRewards: 0, roundSpins: 0, wins: 0, hard: 0, xp: 0, claimedMissions: [] },
     dailyReward: { lastClaimDate: null, streakDay: 0 },
     settings: { musicVolume: 0.5, sfxVolume: 0.7, vibration: true },
     arcadeHighscores: {}, // bester Score pro Minispiel (über alle Schwierigkeiten)
@@ -110,6 +113,7 @@ export function loadProfile(storage = safeStorage()) {
       partyBest: { ...(parsed.partyBest ?? {}) },
       vouchers: { ...(parsed.vouchers ?? {}) },
       arcadeGamesPlayed: parsed.arcadeGamesPlayed ?? base.arcadeGamesPlayed,
+      hardGamesPlayed: parsed.hardGamesPlayed ?? base.hardGamesPlayed,
       redeemedCodes: parsed.redeemedCodes ?? base.redeemedCodes,
       milestonesDone: parsed.milestonesDone ?? base.milestonesDone,
     };
@@ -176,8 +180,10 @@ function safeStorage() {
 export function ensureDaily(profile, now = new Date()) {
   const k = dayKey(now);
   if (profile.daily.day !== k) {
-    profile.daily = { day: k, rounds: 0, games: [], done: [], highscoreRewards: 0, roundSpins: 0 };
+    profile.daily = { day: k, rounds: 0, games: [], done: [], highscoreRewards: 0, roundSpins: 0, wins: 0, hard: 0, xp: 0, claimedMissions: [] };
   }
+  for (const f of ["wins", "hard", "xp"]) if (typeof profile.daily[f] !== "number") profile.daily[f] = 0;
+  if (!Array.isArray(profile.daily.claimedMissions)) profile.daily.claimedMissions = [];
   return profile.daily;
 }
 
@@ -202,6 +208,7 @@ export function grantRewards(profile, { coins = 0, xp = 0 } = {}) {
   profile.coins += coins;
   profile.xp += xp;
   if (coins > 0) profile.stats.coinsEverEarned += coins;
+  if (xp > 0) { profile.stats.xpEverEarned = (profile.stats.xpEverEarned ?? 0) + xp; ensureDaily(profile).xp += xp; }
   return applyLevelUps(profile);
 }
 
@@ -219,6 +226,8 @@ export function applyArcadeRewards(profile, {
   const daily = ensureDaily(profile);
   profile.coins += coinsEarned;
   profile.xp += xpEarned;
+  profile.stats.xpEverEarned = (profile.stats.xpEverEarned ?? 0) + xpEarned;
+  daily.xp += xpEarned;
   profile.stats.arcadeRoundsPlayed = (profile.stats.arcadeRoundsPlayed ?? 0) + 1;
   if (online) profile.stats.onlineRoundsPlayed = (profile.stats.onlineRoundsPlayed ?? 0) + 1;
   profile.stats.coinsEverEarned += coinsEarned;
@@ -226,7 +235,12 @@ export function applyArcadeRewards(profile, {
   profile.stats.bestCombo = Math.max(profile.stats.bestCombo ?? 0, maxCombo);
   profile.stats.goodRoundStreak = tier === "schwach" ? 0 : (profile.stats.goodRoundStreak ?? 0) + 1;
   if (tier === "perfekt") profile.stats.perfectRounds = (profile.stats.perfectRounds ?? 0) + 1;
+  if (difficulty === "hard") {
+    profile.stats.hardRoundsPlayed = (profile.stats.hardRoundsPlayed ?? 0) + 1; daily.hard++;
+    if (!profile.hardGamesPlayed.includes(gameId)) profile.hardGamesPlayed.push(gameId);
+  }
   if (won) {
+    daily.wins++;
     profile.stats.gamesWon = (profile.stats.gamesWon ?? 0) + 1;
     const wk = `wins_${gameId}`;
     profile.stats[wk] = (profile.stats[wk] ?? 0) + 1;

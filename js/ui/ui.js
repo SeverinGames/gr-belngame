@@ -40,56 +40,6 @@ export function renderProfileSummary(profile) {
   renderHomeCard(profile);
 }
 
-export function renderMissions(progressList, onClaim) {
-  const box = el("#missions-list");
-  box.innerHTML = "";
-  progressList.forEach(({ def, current, done, claimed }) => {
-    const row = document.createElement("div");
-    row.className = "mission-row";
-    const pct = Math.min(100, Math.round((current / def.target) * 100));
-    row.innerHTML = `
-      <div class="mission-label">${def.label}</div>
-      <div class="mission-bar"><div style="width:${pct}%"></div></div>
-      <div class="mission-progress">${Math.min(current, def.target)}/${def.target}</div>
-    `;
-    if (done && !claimed) {
-      const btn = document.createElement("button");
-      btn.className = "btn btn--primary btn--small";
-      btn.textContent = `+${rewardLabel(def)} abholen`;
-      btn.addEventListener("click", () => onClaim(def.id));
-      row.appendChild(btn);
-    } else if (claimed) {
-      row.insertAdjacentHTML("beforeend", '<div class="mission-claimed">✓ abgeholt</div>');
-    }
-    box.appendChild(row);
-  });
-}
-function rewardLabel(def) {
-  const r = def.reward;
-  if (r.skinId) return "Skin";
-  if (r.boxId) return "Box";
-  const parts = [];
-  if (r.coins) parts.push(`${r.coins} 🪙`);
-  if (r.xp) parts.push(`${r.xp} XP`);
-  if (r.spin) parts.push("Dreh");
-  if (r.miniBox) parts.push("Mini-Box");
-  return parts.join(" + ");
-}
-
-export function renderDailyStatus(canClaim, streakDay, nextStreakDay, nextRewardText) {
-  el("#daily-status").textContent = canClaim
-    ? `Tag ${nextStreakDay} von 7 - heute gibt's: ${nextRewardText}`
-    : `Schon abgeholt. Aktuelle Serie: Tag ${streakDay}. Komm morgen wieder!`;
-  el("#btn-daily-claim").disabled = !canClaim;
-  el("#daily-claimed-banner").classList.add("hidden");
-}
-
-export function renderDailyClaimed(rewardText, streakDay) {
-  const banner = el("#daily-claimed-banner");
-  banner.textContent = `🎉 Du hast ${rewardText} erhalten! (Serie: Tag ${streakDay})`;
-  banner.classList.remove("hidden");
-}
-
 export function showScreen(id) {
   document.querySelectorAll(".screen").forEach((s) => s.classList.add("hidden"));
   el(`#${id}`).classList.remove("hidden");
